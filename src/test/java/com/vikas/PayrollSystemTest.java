@@ -1,118 +1,151 @@
 package com.vikas;
 
+import com.vikas.dto.EmployeeRequestDTO;
+import com.vikas.dto.EmployeeResponseDTO;
+import com.vikas.dto.SalaryResponseDTO;
+import com.vikas.enums.EmployeeType;
+import com.vikas.service.EmployeeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.NoSuchElementException;
+
 import static org.junit.jupiter.api.Assertions.*;
 
+@SpringBootTest
+@Transactional  // Each test runs in its own transaction, rolled back automatically — no manual cleanup needed
 class PayrollSystemTest {
 
-    // -------------------------------------------------------
-    // We'll reuse these objects across multiple tests
-    // -------------------------------------------------------
-    private FullTimeEmployee fullTimeEmployee;
-    private PartTimeEmployee partTimeEmployee;
-    private PayrollSystem payrollSystem;
+    @Autowired
+    private EmployeeService service;
+
+    private EmployeeRequestDTO fullTimeDTO;
+    private EmployeeRequestDTO partTimeDTO;
 
     @BeforeEach
     void setUp() {
-        // This runs BEFORE every single test automatically
-        fullTimeEmployee = new FullTimeEmployee("Vikas", 1001, 85000);
-        partTimeEmployee = new PartTimeEmployee("Rahul", 1002, 40, 200);
-        payrollSystem    = new PayrollSystem();
+        fullTimeDTO = new EmployeeRequestDTO();
+        fullTimeDTO.setName("Vikas");
+        fullTimeDTO.setType(EmployeeType.FULLTIME);
+        fullTimeDTO.setMonthlySalary(85000);
+
+        partTimeDTO = new EmployeeRequestDTO();
+        partTimeDTO.setName("Rahul");
+        partTimeDTO.setType(EmployeeType.PARTTIME);
+        partTimeDTO.setHoursWorked(40);
+        partTimeDTO.setHourlyRate(200);
     }
 
-    // -------------------------------------------------------
-    // 1. Salary calculation tests
-    // -------------------------------------------------------
+    // --- Add Employee Tests ---
 
     @Test
-    void fullTimeEmployee_SalaryEqualsFixedMonthlySalary() {
-        // Full-time salary should simply be the monthly salary
-        assertEquals(85000, fullTimeEmployee.calculateSalary(),
-                "Full-time salary should equal the fixed monthly salary");
+    void addFullTimeEmployee_Success() {
+        EmployeeResponseDTO response = service.addEmployee(fullTimeDTO);
+        assertNotNull(response.getId()); // ID is auto-generated
+        assertEquals("Vikas", response.getName());
+        assertEquals(85000, response.getSalary());
+        assertEquals("FullTimeEmployee", response.getType());
     }
 
     @Test
-    void partTimeEmployee_SalaryEqualsHoursWorkedMultipliedByRate() {
+    void addPartTimeEmployee_SalaryCalculatedCorrectly() {
+        EmployeeResponseDTO response = service.addEmployee(partTimeDTO);
         // 40 hours × 200 rate = 8000
-        assertEquals(8000, partTimeEmployee.calculateSalary(),
-                "Part-time salary should be hoursWorked * hourlyRate");
+        assertEquals(8000, response.getSalary());
     }
 
     @Test
-    void partTimeEmployee_ZeroHours_SalaryIsZero() {
-        // Edge case: if no hours worked, salary must be 0
-        PartTimeEmployee zeroHours = new PartTimeEmployee("Test", 9999, 0, 200);
-        assertEquals(0, zeroHours.calculateSalary(),
-                "Salary should be 0 when no hours are worked");
-    }
-
-    // -------------------------------------------------------
-    // 2. Employee name and ID tests
-    // -------------------------------------------------------
-
-    @Test
-    void employee_GetNameReturnsCorrectName() {
-        assertEquals("Vikas", fullTimeEmployee.getName());
+    void addEmployee_WithZeroSalary_Success() {
+        fullTimeDTO.setMonthlySalary(0);
+        EmployeeResponseDTO response = service.addEmployee(fullTimeDTO);
+        assertEquals(0, response.getSalary());
     }
 
     @Test
-    void employee_GetIdReturnsCorrectId() {
-        assertEquals(1001, fullTimeEmployee.getId());
+    void addEmployee_WithZeroHours_SalaryIsZero() {
+        partTimeDTO.setHoursWorked(0);
+        EmployeeResponseDTO response = service.addEmployee(partTimeDTO);
+        assertEquals(0, response.getSalary());
     }
 
-    // -------------------------------------------------------
-    // 3. toString() tests
-    // -------------------------------------------------------
+    // --- Get Employee Tests ---
 
     @Test
-    void fullTimeEmployee_ToStringContainsClassName() {
-        // Should say "FullTimeEmployee[..." not "com.vikas.Employee[..."
-        assertTrue(fullTimeEmployee.toString().startsWith("FullTimeEmployee"),
-                "toString should start with the actual class name");
-    }
-
-    @Test
-    void partTimeEmployee_ToStringContainsClassName() {
-        assertTrue(partTimeEmployee.toString().startsWith("PartTimeEmployee"),
-                "toString should start with the actual class name");
-    }
-
-    // -------------------------------------------------------
-    // 4. PayrollSystem — add and display tests
-    // -------------------------------------------------------
-
-    @Test
-    void payrollSystem_AddEmployee_EmployeeIsAdded() {
-        payrollSystem.addEmployee(fullTimeEmployee);
-        // If no exception thrown and system works, employee was added
-        // (We verify indirectly — a more advanced test would check size)
-        assertDoesNotThrow(() -> payrollSystem.displayEmployee());
+    void getAllEmployees_ReturnsCorrectCount() {
+        service.addEmployee(fullTimeDTO);
+        service.addEmployee(partTimeDTO);
+        List<EmployeeResponseDTO> employees = service.getAllEmployees();
+        assertEquals(2, employees.size());
     }
 
     @Test
-    void payrollSystem_AddMultipleEmployees_NoErrors() {
-        assertDoesNotThrow(() -> {
-            payrollSystem.addEmployee(fullTimeEmployee);
-            payrollSystem.addEmployee(partTimeEmployee);
-            payrollSystem.displayEmployee();
-        });
-    }
-
-    // -------------------------------------------------------
-    // 5. PayrollSystem — remove tests
-    // -------------------------------------------------------
-
-    @Test
-    void payrollSystem_RemoveEmployee_NoErrors() {
-        payrollSystem.addEmployee(fullTimeEmployee);
-        assertDoesNotThrow(() -> payrollSystem.removeEmployee(1001));
+    void getEmployeeById_ReturnsCorrectEmployee() {
+        EmployeeResponseDTO created = service.addEmployee(fullTimeDTO);
+        EmployeeResponseDTO fetched = service.getEmployeeById(created.getId());
+        assertEquals("Vikas", fetched.getName());
     }
 
     @Test
-    void payrollSystem_RemoveNonExistentEmployee_NoErrors() {
-        // Removing an ID that doesn't exist should not crash
-        assertDoesNotThrow(() -> payrollSystem.removeEmployee(9999));
+    void getEmployeeById_NotFound_ThrowsException() {
+        assertThrows(NoSuchElementException.class, () -> service.getEmployeeById(9999L));
     }
 
+    // --- Salary Tests ---
+
+    @Test
+    void getEmployeeSalary_ReturnsStructuredResponse() {
+        EmployeeResponseDTO created = service.addEmployee(fullTimeDTO);
+        SalaryResponseDTO salary = service.getEmployeeSalary(created.getId());
+        assertEquals(created.getId(), salary.getEmployeeId());
+        assertEquals("Vikas", salary.getEmployeeName());
+        assertEquals(85000, salary.getSalary());
+    }
+
+    @Test
+    void getEmployeeSalary_NotFound_ThrowsException() {
+        assertThrows(NoSuchElementException.class, () -> service.getEmployeeSalary(9999L));
+    }
+
+    // --- Update Employee Tests ---
+
+    @Test
+    void updateEmployee_UpdatesSalaryCorrectly() {
+        EmployeeResponseDTO created = service.addEmployee(fullTimeDTO);
+        fullTimeDTO.setMonthlySalary(95000);
+        EmployeeResponseDTO updated = service.updateEmployee(created.getId(), fullTimeDTO);
+        assertEquals(95000, updated.getSalary());
+    }
+
+    @Test
+    void updateEmployee_ChangingType_ThrowsException() {
+        EmployeeResponseDTO created = service.addEmployee(fullTimeDTO);
+        // Attempt to update a FULLTIME employee with PARTTIME data
+        partTimeDTO.setName("Vikas");
+        assertThrows(IllegalArgumentException.class,
+                () -> service.updateEmployee(created.getId(), partTimeDTO));
+    }
+
+    @Test
+    void updateEmployee_NotFound_ThrowsException() {
+        assertThrows(NoSuchElementException.class,
+                () -> service.updateEmployee(9999L, fullTimeDTO));
+    }
+
+    // --- Remove Employee Tests ---
+
+    @Test
+    void removeEmployee_Success() {
+        EmployeeResponseDTO created = service.addEmployee(fullTimeDTO);
+        assertDoesNotThrow(() -> service.removeEmployee(created.getId()));
+        assertThrows(NoSuchElementException.class, () -> service.getEmployeeById(created.getId()));
+    }
+
+    @Test
+    void removeNonExistentEmployee_ThrowsException() {
+        assertThrows(NoSuchElementException.class, () -> service.removeEmployee(9999L));
+    }
 }
