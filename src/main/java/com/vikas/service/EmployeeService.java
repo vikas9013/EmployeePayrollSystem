@@ -8,6 +8,7 @@ import com.vikas.entity.FullTimeEmployee;
 import com.vikas.entity.PartTimeEmployee;
 import com.vikas.enums.EmployeeType;
 import com.vikas.repository.EmployeeRepository;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import com.vikas.dto.OnboardingResponseDTO;
 
@@ -56,7 +57,7 @@ public class EmployeeService {
 
     // Get all employees
     public List<EmployeeResponseDTO> getAllEmployees() {
-        return repository.findAll()
+        return repository.findAll(Sort.by(Sort.Direction.ASC, "id"))
                 .stream()
                 .map(this::toDTO)
                 .toList();
