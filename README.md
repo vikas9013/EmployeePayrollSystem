@@ -230,4 +230,4 @@ Uses **PostgreSQL**. Tables are auto-created by Hibernate on first run.
 ## 👨‍💻 Author
 
 **Vikas**  
-Feel free to connect on [GitHub](https://github.com/vikas9013) or [LinkedIn](https://www.linkedIn.com/vikas-singh-rawat-4aa687294/) for ant questions or feedback!
+Feel free to connect on [GitHub](https://github.com/vikas9013) or [LinkedIn](https://www.linkedin.com/in/vikas-singh-rawat-4aa687294/) for ant questions or feedback!
