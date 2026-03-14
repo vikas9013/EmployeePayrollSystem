@@ -37,12 +37,19 @@ public class PayrollSetupService {
     }
 
     private String buildPayrollSummary(Employee employee) {
-        if (employee instanceof FullTimeEmployee fte) {
+
+        if (employee instanceof FullTimeEmployee) {
+
+            FullTimeEmployee fte = (FullTimeEmployee) employee;
             return "Type=FULLTIME, MonthlySalary=" + fte.getMonthlySalary();
-        } else if (employee instanceof PartTimeEmployee pte) {
+
+        } else if (employee instanceof PartTimeEmployee) {
+
+            PartTimeEmployee pte = (PartTimeEmployee) employee;
             return "Type=PARTTIME, HoursWorked=" + pte.getHoursWorked()
                     + ", HourlyRate=" + pte.getHourlyRate();
         }
+
         return "Type=UNKNOWN";
     }
 }

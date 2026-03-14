@@ -3,6 +3,7 @@ package com.vikas.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vikas.dto.EmployeeRequestDTO;
 import com.vikas.dto.EmployeeResponseDTO;
+import com.vikas.dto.OnboardingResponseDTO;
 import com.vikas.dto.SalaryResponseDTO;
 import com.vikas.enums.EmployeeType;
 import com.vikas.service.EmployeeService;
@@ -38,7 +39,7 @@ class EmployeeControllerTest {
     @Test
     void getAllEmployees_Returns200WithList() throws Exception {
         when(service.getAllEmployees()).thenReturn(List.of(
-                new EmployeeResponseDTO(1L, "Vikas", "FullTimeEmployee", "FULLTIME",85000)
+                new EmployeeResponseDTO(1L, "Vikas", "Engineer", "FullTimeEmployee", 85000)
         ));
 
         mockMvc.perform(get("/api/employees"))
@@ -50,8 +51,7 @@ class EmployeeControllerTest {
     @Test
     void getEmployeeById_Returns200() throws Exception {
         when(service.getEmployeeById(1L))
-                .thenReturn(new EmployeeResponseDTO(1L, "Vikas", "FullTimeEmployee","FULLTIME", 85000));
-
+                .thenReturn(new EmployeeResponseDTO(1L, "Vikas", "Engineer", "FullTimeEmployee", 85000));
         mockMvc.perform(get("/api/employees/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Vikas"));
@@ -81,17 +81,20 @@ class EmployeeControllerTest {
     void addEmployee_ValidRequest_Returns201() throws Exception {
         EmployeeRequestDTO dto = new EmployeeRequestDTO();
         dto.setName("Vikas");
+        dto.setDesignation("Engineer");
         dto.setType(EmployeeType.FULLTIME);
         dto.setMonthlySalary(85000);
 
-        when(service.addEmployee(any())).thenReturn(
-                new EmployeeResponseDTO(1L, "Vikas", "FullTimeEmployee","FULLTIME", 85000));
+        when(service.addEmployeeWithOnboarding(any())).thenReturn(
+                new OnboardingResponseDTO(1L, "Vikas", "vikas@company.com",
+                        true, true, true,
+                        "Onboarding completed", "Welcome Vikas!"));
 
-        mockMvc.perform(post("/api/employees")
+        mockMvc.perform(post("/api/employees/onboard")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id").value(1));
+                .andExpect(jsonPath("$.employeeId").value(1));
     }
 
     @Test
@@ -99,7 +102,7 @@ class EmployeeControllerTest {
         EmployeeRequestDTO dto = new EmployeeRequestDTO();
         dto.setType(EmployeeType.FULLTIME); // name is missing
 
-        mockMvc.perform(post("/api/employees")
+        mockMvc.perform(post("/api/employees/onboard")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isBadRequest());
@@ -112,14 +115,19 @@ class EmployeeControllerTest {
         dto.setType(EmployeeType.FULLTIME);
         dto.setMonthlySalary(90000);
 
+        EmployeeRequestDTO dto2 = new EmployeeRequestDTO();
+        dto2.setName("Vikas");
+        dto2.setDesignation("Engineer");
+        dto2.setType(EmployeeType.FULLTIME);
+        dto2.setMonthlySalary(90000);
+
         when(service.updateEmployee(eq(999L), any()))
                 .thenThrow(new NoSuchElementException("Employee ID 999 not found."));
 
         mockMvc.perform(put("/api/employees/999")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(dto)))
-                .andExpect(status().isNotFound());
-    }
+                        .content(objectMapper.writeValueAsString(dto2)))
+                .andExpect(status().isNotFound());}
 
     @Test
     void deleteEmployee_Returns200() throws Exception {

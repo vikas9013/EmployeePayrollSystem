@@ -8,23 +8,29 @@ import com.vikas.entity.FullTimeEmployee;
 import com.vikas.entity.PartTimeEmployee;
 import com.vikas.enums.EmployeeType;
 import com.vikas.repository.EmployeeRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import com.vikas.dto.OnboardingResponseDTO;
 
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.stream.Collectors;
 
 @Service
 public class EmployeeService {
 
+
+    private final AIOnboardingService aiOnboardingService;
     private final EmployeeRepository repository;
     private final OnboardingService  onboardingService;
 
+
     public EmployeeService(EmployeeRepository repository,
-                           OnboardingService onboardingService) {
-        this.repository        = repository;
-        this.onboardingService = onboardingService;
+                           OnboardingService onboardingService,AIOnboardingService aiOnboardingService) {
+        this.repository          = repository;
+        this.onboardingService   = onboardingService;
+        this.aiOnboardingService = aiOnboardingService;
     }
 
 
@@ -60,7 +66,7 @@ public class EmployeeService {
         return repository.findAll(Sort.by(Sort.Direction.ASC, "id"))
                 .stream()
                 .map(this::toDTO)
-                .toList();
+                .collect(Collectors.toList());
     }
 
     // Get employee by ID
@@ -79,25 +85,35 @@ public class EmployeeService {
 
     // Update an employee
     public EmployeeResponseDTO updateEmployee(Long id, EmployeeRequestDTO dto) {
+
         Employee existing = repository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Employee ID " + id + " not found."));
 
         existing.setName(dto.getName());
 
-        if (existing instanceof FullTimeEmployee fte && dto.getType() == EmployeeType.FULLTIME) {
+        if (existing instanceof FullTimeEmployee && dto.getType() == EmployeeType.FULLTIME) {
+
+            FullTimeEmployee fte = (FullTimeEmployee) existing;
             fte.setMonthlySalary(dto.getMonthlySalary());
-        } else if (existing instanceof PartTimeEmployee pte && dto.getType() == EmployeeType.PARTTIME) {
+
+        } else if (existing instanceof PartTimeEmployee && dto.getType() == EmployeeType.PARTTIME) {
+
+            PartTimeEmployee pte = (PartTimeEmployee) existing;
             pte.setHoursWorked(dto.getHoursWorked());
             pte.setHourlyRate(dto.getHourlyRate());
+
         } else {
+
             throw new IllegalArgumentException(
                     "Cannot change employee type. Employee " + id + " is a " +
                             existing.getClass().getSimpleName() + ".");
         }
 
         repository.save(existing);
+
         return toDTO(existing);
     }
+
 
     // Remove an employee
     public void removeEmployee(Long id) {

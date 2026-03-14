@@ -30,11 +30,13 @@ class PayrollSystemTest {
     void setUp() {
         fullTimeDTO = new EmployeeRequestDTO();
         fullTimeDTO.setName("Vikas");
+        fullTimeDTO.setDesignation("Engineer");
         fullTimeDTO.setType(EmployeeType.FULLTIME);
         fullTimeDTO.setMonthlySalary(85000);
 
         partTimeDTO = new EmployeeRequestDTO();
         partTimeDTO.setName("Rahul");
+        partTimeDTO.setDesignation("Intern");
         partTimeDTO.setType(EmployeeType.PARTTIME);
         partTimeDTO.setHoursWorked(40);
         partTimeDTO.setHourlyRate(200);
