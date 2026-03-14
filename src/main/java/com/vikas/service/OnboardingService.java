@@ -12,15 +12,18 @@ public class OnboardingService {
     private final SlackService        slackService;
     private final TrainingService     trainingService;
     private final PayrollSetupService payrollSetupService;
+    private final AIOnboardingService aiOnboardingService;
 
     public OnboardingService(EmailService emailService,
                              SlackService slackService,
                              TrainingService trainingService,
-                             PayrollSetupService payrollSetupService) {
+                             PayrollSetupService payrollSetupService,
+                             AIOnboardingService aiOnboardingService) {
         this.emailService        = emailService;
         this.slackService        = slackService;
         this.trainingService     = trainingService;
         this.payrollSetupService = payrollSetupService;
+        this.aiOnboardingService = aiOnboardingService;
     }
 
     /**
@@ -41,9 +44,10 @@ public class OnboardingService {
     public OnboardingResponseDTO onboard(Employee employee) {
 
         // Step 1 — Email
+        // Step 1 — Email
         String workEmail = emailService.createWorkEmail(employee);
 
-        // Step 2 — Slack (depends on email being ready)
+        // Step 2 — Slack
         slackService.sendWorkspaceInvite(workEmail, employee.getName());
 
         // Step 3 — Training
@@ -52,6 +56,13 @@ public class OnboardingService {
         // Step 4 — Payroll
         payrollSetupService.setupPayroll(employee);
 
+        // Step 5 — AI Onboarding Message (Anthropic Claude)   // ADD FROM HERE
+        String aiMessage = aiOnboardingService.generateMessage(
+                employee.getName(),
+                employee.getDesignation(),
+                null
+        );                                                      // TO HERE
+
         return new OnboardingResponseDTO(
                 employee.getId(),
                 employee.getName(),
@@ -59,7 +70,8 @@ public class OnboardingService {
                 true,
                 true,
                 true,
-                "Onboarding completed successfully for " + employee.getName()
+                "Onboarding completed successfully for " + employee.getName(),
+                aiMessage   // ADD THIS ARGUMENT
         );
     }
 }

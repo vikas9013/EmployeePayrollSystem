@@ -9,13 +9,14 @@ public class OnboardingResponseDTO {
     private boolean trainingAssigned;
     private boolean payrollConfigured;
     private String message;
+    private String aiOnboardingMessage;
 
     public OnboardingResponseDTO() {}
 
     public OnboardingResponseDTO(Long employeeId, String employeeName,
                                  String workEmail, boolean slackInviteSent,
                                  boolean trainingAssigned, boolean payrollConfigured,
-                                 String message) {
+                                 String message,String aiOnboardingMessage) {
         this.employeeId       = employeeId;
         this.employeeName     = employeeName;
         this.workEmail        = workEmail;
@@ -23,6 +24,7 @@ public class OnboardingResponseDTO {
         this.trainingAssigned = trainingAssigned;
         this.payrollConfigured = payrollConfigured;
         this.message          = message;
+        this.aiOnboardingMessage = aiOnboardingMessage;
     }
 
     public Long getEmployeeId()              { return employeeId; }
@@ -40,4 +42,6 @@ public class OnboardingResponseDTO {
     public void setTrainingAssigned(boolean trainingAssigned) { this.trainingAssigned = trainingAssigned; }
     public void setPayrollConfigured(boolean payrollConfigured) { this.payrollConfigured = payrollConfigured; }
     public void setMessage(String message)                  { this.message = message; }
+    public String getAiOnboardingMessage()                     { return aiOnboardingMessage; }
+    public void setAiOnboardingMessage(String aiOnboardingMessage) { this.aiOnboardingMessage = aiOnboardingMessage; }
 }

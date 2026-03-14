@@ -19,7 +19,7 @@ public class TrainingService {
      */
     public void assignTrainingModules(Employee employee) {
         try {
-            List<String> modules = resolveModules(employee.getDesignation());
+            List<String> modules = getLearningResources(employee.getDesignation());
 
             // --- Replace with real LMS API call ---
             System.out.println("[TrainingService] Assigned modules to "
@@ -40,16 +40,23 @@ public class TrainingService {
      * Maps a designation to a list of training module names.
      * Extend this logic to cover all roles in your organisation.
      */
-    private List<String> resolveModules(String designation) {
-        if (designation == null) return List.of("Company Orientation");
+    private List<String> getLearningResources(String designation) {
+
+        if (designation == null) {
+            return List.of("Company Orientation", "Code of Conduct");
+        }
 
         return switch (designation.toLowerCase()) {
+
             case "engineer", "developer", "sde" ->
                     List.of("Company Orientation", "Secure Coding Practices", "Git Workflow");
+
             case "manager", "team lead" ->
                     List.of("Company Orientation", "Leadership Fundamentals", "HR Policies");
+
             case "hr", "human resources" ->
                     List.of("Company Orientation", "Recruitment Basics", "Compliance Training");
+
             default ->
                     List.of("Company Orientation", "Code of Conduct");
         };
