@@ -2,226 +2,201 @@ package com.vikas.controller;
 
 import com.vikas.dto.EmployeeRequestDTO;
 import com.vikas.dto.EmployeeResponseDTO;
+import com.vikas.dto.OnboardingResponseDTO;
 import com.vikas.dto.SalaryResponseDTO;
 import com.vikas.service.EmployeeService;
-import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-import com.vikas.dto.OnboardingResponseDTO;
-
-// ✅ Step 3 - New Swagger imports
+import io.github.bucket4j.Bandwidth;
+import io.github.bucket4j.Bucket;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
+import java.time.Duration;
 
-// ✅ @Tag groups ALL endpoints in this controller under one section in Swagger UI
+// CHANGED:
+//  1. Added @Slf4j — structured logging on every endpoint
+//  2. Added @RequiredArgsConstructor — removes manual constructor
+//  3. getAllEmployees() now returns Page<> with page/size/sort query params
+//  4. Added @SecurityRequirement on class — Swagger UI shows the lock icon and Authorization header
+//  5. Added Bucket4j rate limiter on the /onboard endpoint (10 requests/minute)
+//     to prevent AI API abuse
+//  6. @PreAuthorize added per-method for role-based access control
+
+@Slf4j
 @Tag(name = "Employee Management", description = "APIs for managing employees, payroll and onboarding")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/employees")
+@RequiredArgsConstructor
 public class EmployeeController {
 
     private final EmployeeService service;
 
-    public EmployeeController(EmployeeService service) {
-        this.service = service;
-    }
+    // Rate limiter: max 10 onboard requests per minute per instance
+    // For distributed rate limiting, move this to Redis-backed Bucket4j
+    private final Bucket onboardBucket = Bucket.builder()
+            .addLimit(Bandwidth.simple(10, Duration.ofMinutes(1)))
+            .build();
 
+    // ─── GET ALL ────────────────────────────────────────────────────────────
 
-
-    // GET ALL EMPLOYEES
     @Operation(
-            summary     = "Get all employees",
-            description = "Returns a list of all employees (both full-time and part-time)"
+            summary     = "Get all employees (paginated)",
+            description = "Returns a paginated list of all active employees. " +
+                    "Use ?page=0&size=20&sort=id,asc to control pagination."
     )
     @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description  = "Successfully retrieved list of employees",
-                    // ✅ content + schema tells Swagger what the response body looks like
-                    content      = @Content(schema = @Schema(implementation = EmployeeResponseDTO.class))
-            ),
-            @ApiResponse(
-                    responseCode = "500",
-                    description  = "Internal server error",
-                    content      = @Content
-            )
+            @ApiResponse(responseCode = "200", description = "Successfully retrieved employees",
+                    content = @Content(schema = @Schema(implementation = EmployeeResponseDTO.class))),
+            @ApiResponse(responseCode = "401", description = "Unauthorized — JWT token missing or invalid",
+                    content = @Content),
+            @ApiResponse(responseCode = "500", description = "Internal server error", content = @Content)
     })
     @GetMapping
-    public ResponseEntity<List<EmployeeResponseDTO>> getAllEmployees() {
-        return ResponseEntity.ok(service.getAllEmployees());
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_HR')")
+    public ResponseEntity<Page<EmployeeResponseDTO>> getAllEmployees(
+            @RequestParam(defaultValue = "0")   int page,
+            @RequestParam(defaultValue = "20")  int size,
+            @RequestParam(defaultValue = "id")  String sortBy,
+            @RequestParam(defaultValue = "asc") String direction) {
+
+        Sort sort = direction.equalsIgnoreCase("desc")
+                ? Sort.by(sortBy).descending()
+                : Sort.by(sortBy).ascending();
+
+        Pageable pageable = PageRequest.of(page, size, sort);
+        log.info("GET /api/employees — page={}, size={}, sort={}", page, size, sortBy);
+        return ResponseEntity.ok(service.getAllEmployees(pageable));
     }
 
-    // GET EMPLOYEE BY ID
+    // ─── GET BY ID ──────────────────────────────────────────────────────────
 
-    @Operation(
-            summary     = "Get employee by ID",
-            description = "Returns a single employee's details by their unique ID"
-    )
+    @Operation(summary = "Get employee by ID", description = "Returns a single employee's details.")
     @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description  = "Employee found successfully",
-                    content      = @Content(schema = @Schema(implementation = EmployeeResponseDTO.class))
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description  = "Employee not found with the given ID",
-                    content      = @Content
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description  = "Invalid ID format supplied",
-                    content      = @Content
-            )
+            @ApiResponse(responseCode = "200", description = "Employee found",
+                    content = @Content(schema = @Schema(implementation = EmployeeResponseDTO.class))),
+            @ApiResponse(responseCode = "404", description = "Employee not found", content = @Content),
+            @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content)
     })
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_HR')")
     public ResponseEntity<EmployeeResponseDTO> getEmployeeById(
-            // ✅ @Parameter describes the path variable shown in Swagger UI input box
-            @Parameter(
-                    description = "Unique ID of the employee",
-                    required    = true,
-                    example     = "1"
-            )
+            @Parameter(description = "Unique ID of the employee", required = true, example = "1")
             @PathVariable Long id) {
+        log.info("GET /api/employees/{}", id);
         return ResponseEntity.ok(service.getEmployeeById(id));
     }
 
-
-
-    // GET EMPLOYEE SALARY
+    // ─── GET SALARY ─────────────────────────────────────────────────────────
 
     @Operation(
             summary     = "Get salary of an employee",
-            description = "Returns the calculated salary for a given employee ID. "
-                    + "Full-time employees return monthly salary; part-time return hours x rate."
+            description = "Returns the calculated salary. Full-time: monthly salary. Part-time: hours × rate."
     )
     @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description  = "Salary calculated and returned successfully",
-                    content      = @Content(schema = @Schema(implementation = SalaryResponseDTO.class))
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description  = "Employee not found with the given ID",
-                    content      = @Content
-            )
+            @ApiResponse(responseCode = "200", description = "Salary returned",
+                    content = @Content(schema = @Schema(implementation = SalaryResponseDTO.class))),
+            @ApiResponse(responseCode = "404", description = "Employee not found", content = @Content),
+            @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content)
     })
     @GetMapping("/{id}/salary")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_HR')")
     public ResponseEntity<SalaryResponseDTO> getEmployeeSalary(
-            @Parameter(
-                    description = "Unique ID of the employee",
-                    required    = true,
-                    example     = "1"
-            )
+            @Parameter(description = "Unique ID of the employee", required = true, example = "1")
             @PathVariable Long id) {
+        log.info("GET /api/employees/{}/salary", id);
         return ResponseEntity.ok(service.getEmployeeSalary(id));
     }
 
-
-    // ONBOARD NEW EMPLOYEE (POST)
+    // ─── ONBOARD ────────────────────────────────────────────────────────────
 
     @Operation(
             summary     = "Onboard a new employee",
-            description = "Creates a new employee record and triggers the full onboarding workflow: "
-                    + "generates work email, sends Slack invite, assigns training modules, "
-                    + "configures payroll, and generates an AI welcome message."
+            description = "Creates a new employee and triggers the full onboarding pipeline: " +
+                    "work email, Slack invite, training modules, payroll setup, AI welcome message. " +
+                    "Rate limited to 10 requests per minute."
     )
     @ApiResponses({
-            @ApiResponse(
-                    responseCode = "201",
-                    description  = "Employee onboarded successfully",
-                    content      = @Content(schema = @Schema(implementation = OnboardingResponseDTO.class))
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description  = "Validation failed - check request body fields",
-                    content      = @Content
-            ),
-            @ApiResponse(
-                    responseCode = "500",
-                    description  = "Onboarding process failed internally",
-                    content      = @Content
-            )
+            @ApiResponse(responseCode = "201", description = "Employee onboarded successfully",
+                    content = @Content(schema = @Schema(implementation = OnboardingResponseDTO.class))),
+            @ApiResponse(responseCode = "400", description = "Validation failed", content = @Content),
+            @ApiResponse(responseCode = "429", description = "Too many requests — rate limit exceeded",
+                    content = @Content),
+            @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content),
+            @ApiResponse(responseCode = "500", description = "Onboarding pipeline failed", content = @Content)
     })
     @PostMapping("/onboard")
-    public ResponseEntity<OnboardingResponseDTO> onboardEmployee(
-            @Valid @RequestBody EmployeeRequestDTO dto) {
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public ResponseEntity<?> onboardEmployee(@Valid @RequestBody EmployeeRequestDTO dto) {
+        // Rate limiting check
+        if (!onboardBucket.tryConsume(1)) {
+            log.warn("Rate limit exceeded on /onboard endpoint");
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body("Too many onboarding requests. Please wait a moment and try again.");
+        }
+        log.info("POST /api/employees/onboard — name: {}", dto.getName());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(service.addEmployeeWithOnboarding(dto));
     }
 
-
-    // UPDATE EMPLOYEE (PUT)
+    // ─── UPDATE ─────────────────────────────────────────────────────────────
 
     @Operation(
             summary     = "Update employee details",
-            description = "Updates an existing employee's information by ID. "
-                    + "Provide all fields - partial updates are not supported."
+            description = "Updates an existing employee's information by ID."
     )
     @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description  = "Employee updated successfully",
-                    content      = @Content(schema = @Schema(implementation = EmployeeResponseDTO.class))
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description  = "Employee not found with the given ID",
-                    content      = @Content
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description  = "Validation failed - check request body fields",
-                    content      = @Content
-            )
+            @ApiResponse(responseCode = "200", description = "Employee updated",
+                    content = @Content(schema = @Schema(implementation = EmployeeResponseDTO.class))),
+            @ApiResponse(responseCode = "404", description = "Employee not found", content = @Content),
+            @ApiResponse(responseCode = "400", description = "Validation failed", content = @Content),
+            @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content)
     })
     @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<EmployeeResponseDTO> updateEmployee(
-            @Parameter(
-                    description = "Unique ID of the employee to update",
-                    required    = true,
-                    example     = "1"
-            )
+            @Parameter(description = "Unique ID of the employee", required = true, example = "1")
             @PathVariable Long id,
             @Valid @RequestBody EmployeeRequestDTO dto) {
+        log.info("PUT /api/employees/{}", id);
         return ResponseEntity.ok(service.updateEmployee(id, dto));
     }
 
-
-    // DELETE EMPLOYEE
+    // ─── DELETE ─────────────────────────────────────────────────────────────
 
     @Operation(
-            summary     = "Remove an employee",
-            description = "Permanently deletes an employee record from the system by ID"
+            summary     = "Soft-delete an employee",
+            description = "Marks the employee as deleted (sets deleted_at timestamp). " +
+                    "The record is NOT physically removed from the database."
     )
     @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description  = "Employee removed successfully",
-                    content      = @Content(schema = @Schema(implementation = String.class))
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description  = "Employee not found with the given ID",
-                    content      = @Content
-            )
+            @ApiResponse(responseCode = "200", description = "Employee soft-deleted",
+                    content = @Content(schema = @Schema(implementation = String.class))),
+            @ApiResponse(responseCode = "404", description = "Employee not found", content = @Content),
+            @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content)
     })
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<String> removeEmployee(
-            @Parameter(
-                    description = "Unique ID of the employee to delete",
-                    required    = true,
-                    example     = "1"
-            )
+            @Parameter(description = "Unique ID of the employee", required = true, example = "1")
             @PathVariable Long id) {
+        log.info("DELETE /api/employees/{}", id);
         service.removeEmployee(id);
         return ResponseEntity.ok("Employee ID " + id + " removed successfully.");
     }

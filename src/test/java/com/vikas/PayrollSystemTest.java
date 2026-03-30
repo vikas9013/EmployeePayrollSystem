@@ -4,20 +4,20 @@ import com.vikas.dto.EmployeeRequestDTO;
 import com.vikas.dto.EmployeeResponseDTO;
 import com.vikas.dto.SalaryResponseDTO;
 import com.vikas.enums.EmployeeType;
+import com.vikas.exception.EmployeeNotFoundException;
 import com.vikas.service.EmployeeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.NoSuchElementException;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
-@Transactional  // Each test runs in its own transaction, rolled back automatically — no manual cleanup needed
+@Transactional
 class PayrollSystemTest {
 
     @Autowired
@@ -43,11 +43,14 @@ class PayrollSystemTest {
     }
 
     // --- Add Employee Tests ---
+    // These tests use addEmployee() which saves directly to DB without
+    // triggering the full AI onboarding pipeline — correct for unit tests
+    // that are testing salary, update, delete — not onboarding behaviour.
 
     @Test
     void addFullTimeEmployee_Success() {
         EmployeeResponseDTO response = service.addEmployee(fullTimeDTO);
-        assertNotNull(response.getId()); // ID is auto-generated
+        assertNotNull(response.getId());
         assertEquals("Vikas", response.getName());
         assertEquals(85000, response.getSalary());
         assertEquals("FullTimeEmployee", response.getType());
@@ -80,8 +83,9 @@ class PayrollSystemTest {
     void getAllEmployees_ReturnsCorrectCount() {
         service.addEmployee(fullTimeDTO);
         service.addEmployee(partTimeDTO);
-        List<EmployeeResponseDTO> employees = service.getAllEmployees();
-        assertEquals(2, employees.size());
+        // CHANGED: getAllEmployees now requires Pageable — Page wraps results
+        Page<EmployeeResponseDTO> employees = service.getAllEmployees(PageRequest.of(0, 20));
+        assertEquals(2, employees.getTotalElements());
     }
 
     @Test
@@ -93,7 +97,8 @@ class PayrollSystemTest {
 
     @Test
     void getEmployeeById_NotFound_ThrowsException() {
-        assertThrows(NoSuchElementException.class, () -> service.getEmployeeById(9999L));
+        // CHANGED: now throws EmployeeNotFoundException instead of NoSuchElementException
+        assertThrows(EmployeeNotFoundException.class, () -> service.getEmployeeById(9999L));
     }
 
     // --- Salary Tests ---
@@ -109,7 +114,8 @@ class PayrollSystemTest {
 
     @Test
     void getEmployeeSalary_NotFound_ThrowsException() {
-        assertThrows(NoSuchElementException.class, () -> service.getEmployeeSalary(9999L));
+        // CHANGED: now throws EmployeeNotFoundException instead of NoSuchElementException
+        assertThrows(EmployeeNotFoundException.class, () -> service.getEmployeeSalary(9999L));
     }
 
     // --- Update Employee Tests ---
@@ -125,7 +131,6 @@ class PayrollSystemTest {
     @Test
     void updateEmployee_ChangingType_ThrowsException() {
         EmployeeResponseDTO created = service.addEmployee(fullTimeDTO);
-        // Attempt to update a FULLTIME employee with PARTTIME data
         partTimeDTO.setName("Vikas");
         assertThrows(IllegalArgumentException.class,
                 () -> service.updateEmployee(created.getId(), partTimeDTO));
@@ -133,7 +138,8 @@ class PayrollSystemTest {
 
     @Test
     void updateEmployee_NotFound_ThrowsException() {
-        assertThrows(NoSuchElementException.class,
+        // CHANGED: now throws EmployeeNotFoundException instead of NoSuchElementException
+        assertThrows(EmployeeNotFoundException.class,
                 () -> service.updateEmployee(9999L, fullTimeDTO));
     }
 
@@ -143,11 +149,15 @@ class PayrollSystemTest {
     void removeEmployee_Success() {
         EmployeeResponseDTO created = service.addEmployee(fullTimeDTO);
         assertDoesNotThrow(() -> service.removeEmployee(created.getId()));
-        assertThrows(NoSuchElementException.class, () -> service.getEmployeeById(created.getId()));
+        // After soft delete, getById should throw EmployeeNotFoundException
+        assertThrows(EmployeeNotFoundException.class,
+                () -> service.getEmployeeById(created.getId()));
     }
 
     @Test
     void removeNonExistentEmployee_ThrowsException() {
-        assertThrows(NoSuchElementException.class, () -> service.removeEmployee(9999L));
+        // CHANGED: now throws EmployeeNotFoundException instead of NoSuchElementException
+        assertThrows(EmployeeNotFoundException.class,
+                () -> service.removeEmployee(9999L));
     }
 }

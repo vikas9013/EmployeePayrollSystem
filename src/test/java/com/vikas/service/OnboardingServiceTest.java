@@ -3,7 +3,7 @@ package com.vikas.service;
 import com.vikas.dto.OnboardingResponseDTO;
 import com.vikas.entity.FullTimeEmployee;
 import com.vikas.entity.PartTimeEmployee;
-import com.vikas.ExceptionHandler.OnboardingException;
+import com.vikas.exception.OnboardingException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -113,6 +113,7 @@ class OnboardingServiceTest {
 
     @Test
     void onboard_EmailFails_ThrowsOnboardingException() {
+        // CHANGED: import updated to com.vikas.exception.OnboardingException
         when(emailService.createWorkEmail(fullTimeEmployee))
                 .thenThrow(new OnboardingException("EMAIL_CREATION", "Email failed", new RuntimeException()));
 

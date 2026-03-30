@@ -2,7 +2,6 @@ package com.vikas.service;
 
 import com.vikas.entity.FullTimeEmployee;
 import com.vikas.entity.PartTimeEmployee;
-import com.vikas.ExceptionHandler.OnboardingException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

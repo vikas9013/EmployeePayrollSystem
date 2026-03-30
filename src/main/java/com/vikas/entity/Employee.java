@@ -2,57 +2,71 @@ package com.vikas.entity;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.SQLRestriction;
+
+import java.time.LocalDateTime;
+
+// CHANGED:
+//  1. Added Lombok @Getter/@Setter/@NoArgsConstructor — removes all boilerplate getters/setters
+//  2. Added @SQLDelete + @SQLRestriction for soft deletes — removeEmployee() now sets deleted_at
+//     instead of permanently wiping the row
+//  3. Added createdAt / updatedAt audit timestamps with @PrePersist / @PreUpdate
 
 @Entity
 @Inheritance(strategy = InheritanceType.JOINED)
 @Table(name = "employees")
+@SQLDelete(sql = "UPDATE employees SET deleted_at = NOW() WHERE id = ?")
+@SQLRestriction("deleted_at IS NULL")
+@Getter
+@Setter
+@NoArgsConstructor
 public abstract class Employee {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotBlank(message = "Designation cannot be empty")
-    private String designation;
-
     @NotBlank(message = "Name cannot be empty")
     private String name;
 
-    public Employee() {
-    }
+    @NotBlank(message = "Designation cannot be empty")
+    private String designation;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
+
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
 
     public Employee(String name, String designation) {
-        this.name = name;
-        this.designation = designation;
-
-        }
-
-    public String getDesignation() {
-        return designation;
-    }
-
-    public void setDesignation(String designation) {
+        this.name        = name;
         this.designation = designation;
     }
-    public Long getId () {
-        return id;
-    }
-    public String getName () {
-        return name;
-    }
-    public void setId (Long id){
-        this.id = id;
-    }
-    public void setName (String name){
-        this.name = name;
+
+    @PrePersist
+    protected void onCreate() {
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
     }
 
-    public abstract double calculateSalary ();
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public abstract double calculateSalary();
 
     @Override
-    public String toString () {
+    public String toString() {
         return getClass().getSimpleName()
                 + "[id=" + id + ", name=" + name
                 + ", salary=" + calculateSalary() + "]";
-        }
     }
+}

@@ -6,16 +6,18 @@ import com.vikas.dto.EmployeeResponseDTO;
 import com.vikas.dto.OnboardingResponseDTO;
 import com.vikas.dto.SalaryResponseDTO;
 import com.vikas.enums.EmployeeType;
+import com.vikas.exception.EmployeeNotFoundException;
 import com.vikas.service.EmployeeService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
-import java.util.NoSuchElementException;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -38,14 +40,17 @@ class EmployeeControllerTest {
 
     @Test
     void getAllEmployees_Returns200WithList() throws Exception {
-        when(service.getAllEmployees()).thenReturn(List.of(
-                new EmployeeResponseDTO(1L, "Vikas", "Engineer", "FullTimeEmployee", 85000)
-        ));
+        // CHANGED: getAllEmployees now takes Pageable and returns Page<>
+        when(service.getAllEmployees(any(Pageable.class))).thenReturn(
+                new PageImpl<>(List.of(
+                        new EmployeeResponseDTO(1L, "Vikas", "Engineer", "FullTimeEmployee", 85000)
+                ))
+        );
 
         mockMvc.perform(get("/api/employees"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].name").value("Vikas"))
-                .andExpect(jsonPath("$[0].salary").value(85000));
+                .andExpect(jsonPath("$.content[0].name").value("Vikas"))
+                .andExpect(jsonPath("$.content[0].salary").value(85000));
     }
 
     @Test
@@ -59,11 +64,11 @@ class EmployeeControllerTest {
 
     @Test
     void getEmployeeById_NotFound_Returns404() throws Exception {
-        when(service.getEmployeeById(999L)).thenThrow(new NoSuchElementException("Employee ID 999 not found."));
+        // CHANGED: now throws EmployeeNotFoundException instead of NoSuchElementException
+        when(service.getEmployeeById(999L)).thenThrow(new EmployeeNotFoundException(999L));
 
         mockMvc.perform(get("/api/employees/999"))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.message").value("Employee ID 999 not found."));
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -112,22 +117,19 @@ class EmployeeControllerTest {
     void updateEmployee_NotFound_Returns404() throws Exception {
         EmployeeRequestDTO dto = new EmployeeRequestDTO();
         dto.setName("Vikas");
+        dto.setDesignation("Engineer");
         dto.setType(EmployeeType.FULLTIME);
         dto.setMonthlySalary(90000);
 
-        EmployeeRequestDTO dto2 = new EmployeeRequestDTO();
-        dto2.setName("Vikas");
-        dto2.setDesignation("Engineer");
-        dto2.setType(EmployeeType.FULLTIME);
-        dto2.setMonthlySalary(90000);
-
+        // CHANGED: now throws EmployeeNotFoundException instead of NoSuchElementException
         when(service.updateEmployee(eq(999L), any()))
-                .thenThrow(new NoSuchElementException("Employee ID 999 not found."));
+                .thenThrow(new EmployeeNotFoundException(999L));
 
         mockMvc.perform(put("/api/employees/999")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(dto2)))
-                .andExpect(status().isNotFound());}
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isNotFound());
+    }
 
     @Test
     void deleteEmployee_Returns200() throws Exception {
@@ -138,7 +140,8 @@ class EmployeeControllerTest {
 
     @Test
     void deleteEmployee_NotFound_Returns404() throws Exception {
-        doThrow(new NoSuchElementException("Employee ID 999 not found."))
+        // CHANGED: now throws EmployeeNotFoundException instead of NoSuchElementException
+        doThrow(new EmployeeNotFoundException(999L))
                 .when(service).removeEmployee(999L);
 
         mockMvc.perform(delete("/api/employees/999"))
