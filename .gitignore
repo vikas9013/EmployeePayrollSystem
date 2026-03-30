@@ -24,4 +24,4 @@ output.txt
 test.json
 
 # Maven wrapper
-.mvn/wrapper/maven-wrapper.jar
+.mvn/wrapper/maven-wrapper.jar.idea/
