@@ -1,0 +1,70 @@
+services:
+  # PostgreSQL Database Service
+  - type: pserv
+    name: payroll-db
+    env: docker
+    plan: free
+    ipAddress: private
+    repo: https://github.com/vikas9013/EmployeePayrollSystem.git
+    dockerCommand: postgres:16
+    envVars:
+      - key: POSTGRES_DB
+        value: payrolldb
+      - key: POSTGRES_USER
+        value: payroll_user
+      - key: POSTGRES_PASSWORD
+        generateValue: true
+
+  # Redis Cache Service
+  - type: pserv
+    name: payroll-redis
+    env: docker
+    plan: free
+    ipAddress: private
+    dockerCommand: redis:alpine
+    dockerArgs:
+      - redis-server
+      - --appendonly
+      - "yes"
+
+  # Java Spring Boot Application Service
+  - type: web
+    name: payroll-app
+    env: docker
+    plan: free
+    repo: https://github.com/vikas9013/EmployeePayrollSystem.git
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: DB_URL
+        fromService:
+          type: pserv
+          name: payroll-db
+          property: connection_string
+        value: jdbc:postgresql://payroll-db:5432/payrolldb
+      - key: DB_USERNAME
+        value: payroll_user
+      - key: DB_PASSWORD
+        fromService:
+          type: pserv
+          name: payroll-db
+          envKey: POSTGRES_PASSWORD
+      - key: REDIS_HOST
+        fromService:
+          type: pserv
+          name: payroll-redis
+          property: hostname
+        value: payroll-redis
+      - key: REDIS_PORT
+        value: "6379"
+      - key: GROQ_API_KEY
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+    depends_on:
+      - type: pserv
+        name: payroll-db
+      - type: pserv
+        name: payroll-redis
+    healthCheckPath: /actuator/health
+    healthCheckStartupFailureThresholdCount: 10
+

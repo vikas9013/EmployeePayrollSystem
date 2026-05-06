@@ -17,6 +17,7 @@ src/main/resources/application.properties
 # OS
 .DS_Store
 Thumbs.db
+nul
 
 # Logs and temp files
 *.log
