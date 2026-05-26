@@ -14,6 +14,21 @@ A **production-ready Spring Boot backend** that manages employee payroll for ful
 
 ---
 
+## 🌐 Live Demo
+
+🔗 **Swagger UI:** https://employeepayroll-app.onrender.com/swagger-ui.html
+🔗 **Health Check:** https://employeepayroll-app.onrender.com/actuator/health
+
+> ⚠️ Hosted on Render free tier — may take **50 seconds to wake up** on first request. Please wait and retry if it doesn't load immediately.
+
+**Test credentials:**
+| Username | Password | Role |
+|---|---|---|
+| `admin` | `admin123` | `ROLE_ADMIN` |
+| `hr` | `hr123` | `ROLE_HR` |
+
+---
+
 ## ⚡ Quick Overview
 
 - 🔐 JWT Authentication + Role-Based Access Control (RBAC)
@@ -31,6 +46,7 @@ A **production-ready Spring Boot backend** that manages employee payroll for ful
 ## 🎯 Real-World Use Case
 
 This project simulates an internal HR system used by companies to:
+
 - Automate employee onboarding workflows end-to-end
 - Reduce manual HR operations with a 5-step pipeline
 - Ensure consistent payroll configuration for all employee types
@@ -74,7 +90,7 @@ Client (Swagger UI / curl / Postman)
 ## 🚀 Tech Stack
 
 | Category | Technology | Details |
-|---|---|---|
+| --- | --- | --- |
 | Backend | Java 21, Spring Boot 3.3.4 | Core framework |
 | Security | Spring Security + JJWT 0.12.6 | JWT stateless auth |
 | Database | PostgreSQL + Spring Data JPA | Hibernate ORM |
@@ -89,14 +105,14 @@ Client (Swagger UI / curl / Postman)
 | Boilerplate | Lombok | Clean code |
 | Testing | JUnit + Mockito + Testcontainers + JaCoCo | Full test suite |
 | Build | Maven | Dependency management |
-| Deployment | Docker + Docker Compose | One-command setup |
+| Deployment | Docker + Docker Compose + Render | One-command setup |
 
 ---
 
 ## 🧠 OOP Concepts Demonstrated
 
 | Concept | How It's Used |
-|---|---|
+| --- | --- |
 | **Abstraction** | `Employee` is an abstract class with abstract `calculateSalary()` method |
 | **Inheritance** | `FullTimeEmployee` and `PartTimeEmployee` extend `Employee` |
 | **Polymorphism** | Each subclass overrides `calculateSalary()` with its own logic |
@@ -111,20 +127,21 @@ The entire API is secured with **JWT (JSON Web Token)** stateless authentication
 ### Roles & Permissions
 
 | Role | Permissions |
-|---|---|
+| --- | --- |
 | `ROLE_ADMIN` | Full access — GET, POST, PUT, DELETE |
 | `ROLE_HR` | Read-only access — GET endpoints only |
 
 ### Default Users (auto-created on first startup by DataSeeder)
 
 | Username | Password | Role |
-|---|---|---|
+| --- | --- | --- |
 | `admin` | `admin123` | `ROLE_ADMIN` |
 | `hr` | `hr123` | `ROLE_HR` |
 
 > ⚠️ **Change these passwords immediately before going to production!**
 
 ### How Authentication Works
+
 1. Call `POST /api/auth/login` with your credentials
 2. Receive a signed JWT token in the response
 3. Pass the token as `Authorization: Bearer <token>` on every subsequent request
@@ -188,7 +205,7 @@ src/
 Schema is version-controlled via `V1__init_schema.sql` and applied **automatically on startup** — no manual SQL needed.
 
 | Table | Contents |
-|---|---|
+| --- | --- |
 | `employees` | id, name, designation, deleted_at (soft-delete), created_at, updated_at |
 | `fulltime_employees` | monthly_salary |
 | `parttime_employees` | hours_worked, hourly_rate |
@@ -199,9 +216,31 @@ Schema is version-controlled via `V1__init_schema.sql` and applied **automatical
 
 ---
 
+## ☁️ Deployed on Render
+
+The app is live on **Render** (free tier) with PostgreSQL as the database.
+
+### Required Environment Variables
+
+| Key | Description |
+| --- | --- |
+| `spring.datasource.url` | PostgreSQL connection URL |
+| `spring.datasource.username` | Database username |
+| `spring.datasource.password` | Database password |
+| `jwt.secret` | Random string, minimum 32 characters |
+| `jwt.expiration-ms` | Token expiry in ms (e.g. `86400000` = 24 hours) |
+| `groq.api.key` | Groq API key from [console.groq.com](https://console.groq.com) |
+| `spring.cache.type` | Set to `none` on free tier (no Redis available) |
+| `management.health.redis.enabled` | Set to `false` on free tier |
+
+> ⚠️ Free tier instances **spin down after inactivity** — first request may take 50+ seconds.
+
+---
+
 ## ⚙️ Local Setup & Configuration
 
 ### Prerequisites
+
 - Java 21+
 - Maven
 - PostgreSQL running locally
@@ -209,27 +248,24 @@ Schema is version-controlled via `V1__init_schema.sql` and applied **automatical
 - Groq API Key — free at [console.groq.com](https://console.groq.com)
 
 ### 1. Clone the repository
+
 ```bash
 git clone https://github.com/vikas9013/EmployeePayrollSystem.git
 cd EmployeePayrollSystem
 ```
 
 ### 2. Create the database
+
 ```sql
 CREATE DATABASE payrolldb;
 ```
 
 ### 3. Configure credentials
 
-Copy the example properties file:
-```bash
-cp src/main/resources/application.properties.example src/main/resources/application.properties
-```
-
 Set these environment variables:
 
 | Variable | Description |
-|---|---|
+| --- | --- |
 | `DB_USERNAME` | Your PostgreSQL username |
 | `DB_PASSWORD` | Your PostgreSQL password |
 | `GROQ_API_KEY` | Your Groq API key from console.groq.com |
@@ -252,6 +288,7 @@ export JWT_SECRET=ThisIsASecretKeyThatMustBe32CharsLong!!
 ```
 
 ### 4. Run the application
+
 ```bash
 mvn spring-boot:run
 ```
@@ -271,7 +308,7 @@ docker-compose up --build
 ```
 
 | Service | Port |
-|---|---|
+| --- | --- |
 | App | `8080` |
 | PostgreSQL | `5432` |
 | Redis | `6379` |
@@ -293,11 +330,14 @@ docker-compose down -v
 Interactive API documentation — test every endpoint directly in the browser.
 
 | URL | Description |
-|---|---|
-| `http://localhost:8080/swagger-ui.html` | Swagger UI |
-| `http://localhost:8080/v3/api-docs` | Raw OpenAPI JSON |
+| --- | --- |
+| `https://employeepayroll-app.onrender.com/swagger-ui.html` | Live Swagger UI |
+| `https://employeepayroll-app.onrender.com/v3/api-docs` | Live OpenAPI JSON |
+| `http://localhost:8080/swagger-ui.html` | Local Swagger UI |
+| `http://localhost:8080/v3/api-docs` | Local OpenAPI JSON |
 
 ### How to authenticate in Swagger UI
+
 1. Call `POST /api/auth/login` → **Try it out** → Execute
 2. Copy the `token` from the response
 3. Click **Authorize 🔒** at the top of the page
@@ -311,13 +351,13 @@ Interactive API documentation — test every endpoint directly in the browser.
 ### Authentication
 
 | Method | Endpoint | Auth | Description |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `POST` | `/api/auth/login` | ❌ Public | Login and receive a JWT token |
 
 ### Employee Management
 
 | Method | Endpoint | Role Required | Description |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `GET` | `/api/employees` | ADMIN or HR | Get all employees (paginated) |
 | `GET` | `/api/employees/{id}` | ADMIN or HR | Get employee by ID (Redis cached) |
 | `GET` | `/api/employees/{id}/salary` | ADMIN or HR | Get calculated salary |
@@ -328,7 +368,7 @@ Interactive API documentation — test every endpoint directly in the browser.
 ### Observability
 
 | Method | Endpoint | Auth | Description |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `GET` | `/actuator/health` | ❌ Public | Application health check |
 | `GET` | `/actuator/prometheus` | ❌ Public | Prometheus metrics |
 
@@ -337,9 +377,11 @@ Interactive API documentation — test every endpoint directly in the browser.
 ## 📝 Sample Requests & Responses
 
 ### Step 1 — Login
-```json
-POST /api/auth/login
 
+```
+POST /api/auth/login
+```
+```json
 {
   "username": "admin",
   "password": "admin123"
@@ -352,15 +394,18 @@ POST /api/auth/login
   "role": "ROLE_ADMIN"
 }
 ```
+
 Use as: `Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...`
 
 ---
 
 ### Step 2 — Onboard a Full-Time Employee
-```json
+
+```
 POST /api/employees/onboard
 Authorization: Bearer <your-token>
-
+```
+```json
 {
   "name": "Vikas Singh Rawat",
   "designation": "Software Engineer",
@@ -372,10 +417,12 @@ Authorization: Bearer <your-token>
 ```
 
 ### Onboard a Part-Time Employee
-```json
+
+```
 POST /api/employees/onboard
 Authorization: Bearer <your-token>
-
+```
+```json
 {
   "name": "Rahul Mehta",
   "designation": "Intern",
@@ -387,6 +434,7 @@ Authorization: Bearer <your-token>
 ```
 
 ### Onboarding Success Response
+
 ```json
 {
   "employeeId": 1,
@@ -401,6 +449,7 @@ Authorization: Bearer <your-token>
 ```
 
 ### Get All Employees (Paginated)
+
 ```
 GET /api/employees?page=0&size=10&sort=id,asc
 Authorization: Bearer <your-token>
@@ -411,39 +460,13 @@ Authorization: Bearer <your-token>
 ## 🧪 Testing the API
 
 ### Using Swagger UI (Recommended)
-1. Open `http://localhost:8080/swagger-ui.html`
+
+1. Open `https://employeepayroll-app.onrender.com/swagger-ui.html`
 2. Login → copy token → click **Authorize 🔒**
 3. Use **Try it out** on any endpoint
 
-### Using curl (Windows CMD)
-
-```cmd
-:: Login
-curl -X POST http://localhost:8080/api/auth/login -H "Content-Type: application/json" -d "{\"username\": \"admin\", \"password\": \"admin123\"}"
-
-:: Get all employees
-curl -X GET http://localhost:8080/api/employees -H "Authorization: Bearer TOKEN"
-
-:: Get by ID
-curl -X GET http://localhost:8080/api/employees/1 -H "Authorization: Bearer TOKEN"
-
-:: Get salary
-curl -X GET http://localhost:8080/api/employees/1/salary -H "Authorization: Bearer TOKEN"
-
-:: Onboard full-time
-curl -X POST http://localhost:8080/api/employees/onboard -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"name\": \"Vikas\", \"designation\": \"Software Engineer\", \"type\": \"FULLTIME\", \"monthlySalary\": 85000, \"hoursWorked\": 0, \"hourlyRate\": 0}"
-
-:: Onboard part-time
-curl -X POST http://localhost:8080/api/employees/onboard -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"name\": \"Rahul\", \"designation\": \"Intern\", \"type\": \"PARTTIME\", \"monthlySalary\": 0, \"hoursWorked\": 40, \"hourlyRate\": 200}"
-
-:: Update
-curl -X PUT http://localhost:8080/api/employees/1 -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"name\": \"Vikas Updated\", \"designation\": \"Senior Engineer\", \"type\": \"FULLTIME\", \"monthlySalary\": 95000, \"hoursWorked\": 0, \"hourlyRate\": 0}"
-
-:: Delete
-curl -X DELETE http://localhost:8080/api/employees/1 -H "Authorization: Bearer TOKEN"
-```
-
 ### Recommended Testing Order
+
 1. `POST /api/auth/login` → get JWT token
 2. `POST /api/employees/onboard` → create employee, note the `id`
 3. `GET /api/employees` → confirm employee is listed
@@ -451,6 +474,34 @@ curl -X DELETE http://localhost:8080/api/employees/1 -H "Authorization: Bearer T
 5. `GET /api/employees/{id}/salary` → verify salary calculation
 6. `PUT /api/employees/{id}` → update (clears Redis cache)
 7. `DELETE /api/employees/{id}` → soft-delete (clears Redis cache)
+
+### Using curl (Windows CMD)
+
+```cmd
+:: Login
+curl -X POST https://employeepayroll-app.onrender.com/api/auth/login -H "Content-Type: application/json" -d "{\"username\": \"admin\", \"password\": \"admin123\"}"
+
+:: Get all employees
+curl -X GET https://employeepayroll-app.onrender.com/api/employees -H "Authorization: Bearer TOKEN"
+
+:: Get by ID
+curl -X GET https://employeepayroll-app.onrender.com/api/employees/1 -H "Authorization: Bearer TOKEN"
+
+:: Get salary
+curl -X GET https://employeepayroll-app.onrender.com/api/employees/1/salary -H "Authorization: Bearer TOKEN"
+
+:: Onboard full-time
+curl -X POST https://employeepayroll-app.onrender.com/api/employees/onboard -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"name\": \"Vikas\", \"designation\": \"Software Engineer\", \"type\": \"FULLTIME\", \"monthlySalary\": 85000, \"hoursWorked\": 0, \"hourlyRate\": 0}"
+
+:: Onboard part-time
+curl -X POST https://employeepayroll-app.onrender.com/api/employees/onboard -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"name\": \"Rahul\", \"designation\": \"Intern\", \"type\": \"PARTTIME\", \"monthlySalary\": 0, \"hoursWorked\": 40, \"hourlyRate\": 200}"
+
+:: Update
+curl -X PUT https://employeepayroll-app.onrender.com/api/employees/1 -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"name\": \"Vikas Updated\", \"designation\": \"Senior Engineer\", \"type\": \"FULLTIME\", \"monthlySalary\": 95000, \"hoursWorked\": 0, \"hourlyRate\": 0}"
+
+:: Delete
+curl -X DELETE https://employeepayroll-app.onrender.com/api/employees/1 -H "Authorization: Bearer TOKEN"
+```
 
 ---
 
@@ -485,7 +536,7 @@ New Employee Saved to DB
 ### Training Modules by Designation
 
 | Designation | Modules Assigned |
-|---|---|
+| --- | --- |
 | Engineer / Developer / SDE | Company Orientation, Secure Coding Practices, Git Workflow |
 | Manager / Team Lead | Company Orientation, Leadership Fundamentals, HR Policies |
 | HR / Human Resources | Company Orientation, Recruitment Basics, Compliance Training |
@@ -496,7 +547,7 @@ New Employee Saved to DB
 ## ⚡ Redis Caching
 
 | Operation | Cache Behaviour |
-|---|---|
+| --- | --- |
 | `GET /api/employees/{id}` | Cached under key `employees::{id}` |
 | `PUT /api/employees/{id}` | Cache evicted on update |
 | `DELETE /api/employees/{id}` | Cache evicted on delete |
@@ -506,7 +557,7 @@ New Employee Saved to DB
 ## 📊 Observability
 
 | Feature | Details |
-|---|---|
+| --- | --- |
 | **Health Check** | `GET /actuator/health` — reports UP/DOWN |
 | **Prometheus Metrics** | `GET /actuator/prometheus` — JVM, HTTP, custom metrics |
 | **Structured Logging** | All controllers & services use `@Slf4j` with consistent log levels |
@@ -528,7 +579,7 @@ Coverage report: `target/site/jacoco/index.html`
 ### Test Suite
 
 | Test Class | What It Covers |
-|---|---|
+| --- | --- |
 | `EmployeeControllerTest` | Full HTTP layer tests with MockMvc |
 | `EmployeeEntityTest` | OOP inheritance & salary calculation |
 | `OnboardingServiceTest` | Mocked 5-step pipeline |
@@ -554,10 +605,10 @@ Coverage report: `target/site/jacoco/index.html`
 ## 📸 Screenshots
 
 ### Swagger UI — All Endpoints
-![Swagger UI](screenshots/swagger-ui.png)
+![Login](screenshots/login-response.png)
 
 ### Login — JWT Token Response
-![Login](screenshots/login-response.png)
+![Swagger UI](screenshots/swagger-ui.png)
 
 ### Onboarding — AI Pipeline Response
 ![Onboarding](screenshots/onboarding-response.png)
