@@ -81,11 +81,12 @@ class PayrollSystemTest {
 
     @Test
     void getAllEmployees_ReturnsCorrectCount() {
+        long initialCount = service.getAllEmployees(PageRequest.of(0, 20)).getTotalElements();
         service.addEmployee(fullTimeDTO);
         service.addEmployee(partTimeDTO);
         // CHANGED: getAllEmployees now requires Pageable — Page wraps results
         Page<EmployeeResponseDTO> employees = service.getAllEmployees(PageRequest.of(0, 20));
-        assertEquals(2, employees.getTotalElements());
+        assertEquals(initialCount + 2, employees.getTotalElements());
     }
 
     @Test

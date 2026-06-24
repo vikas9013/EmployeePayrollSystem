@@ -26,6 +26,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 public class DataSeeder {
 
     private final UserRepository  userRepository;
+    private final com.vikas.repository.EmployeeRepository employeeRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Bean
@@ -50,6 +51,35 @@ public class DataSeeder {
                         .build();
                 userRepository.save(hrUser);
                 log.info("Default HR user created. Username: hr | Password: hr123");
+            }
+
+            if (!userRepository.existsByUsername("employee")) {
+                Long employeeId = 1L;
+                if (employeeRepository.count() == 0) {
+                    com.vikas.entity.FullTimeEmployee seedEmp = new com.vikas.entity.FullTimeEmployee();
+                    seedEmp.setName("Vikas Employee");
+                    seedEmp.setDesignation("Software Engineer");
+                    seedEmp.setMonthlySalary(60000.0);
+                    seedEmp.setWorkEmail("employee@company.com");
+                    seedEmp.setSlackInviteSent(true);
+                    seedEmp.setTrainingAssigned(true);
+                    seedEmp.setPayrollConfigured(true);
+                    seedEmp.setAiOnboardingMessage("Welcome to the team, Vikas!");
+                    seedEmp = employeeRepository.save(seedEmp);
+                    employeeId = seedEmp.getId();
+                    log.info("Seeded default employee: {} with ID {}", seedEmp.getName(), employeeId);
+                } else {
+                    employeeId = employeeRepository.findAll().get(0).getId();
+                }
+
+                User empUser = User.builder()
+                        .username("employee")
+                        .password(passwordEncoder.encode("employee123"))
+                        .role("ROLE_EMPLOYEE")
+                        .employeeId(employeeId)
+                        .build();
+                userRepository.save(empUser);
+                log.info("Default Employee user created. Username: employee | Password: employee123 | Linked Employee ID: {}", employeeId);
             }
         };
     }

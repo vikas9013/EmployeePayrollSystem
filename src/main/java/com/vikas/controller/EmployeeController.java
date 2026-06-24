@@ -95,7 +95,7 @@ public class EmployeeController {
             @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content)
     })
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_HR')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_HR') or (hasAuthority('ROLE_EMPLOYEE') and @securityService.isSelf(authentication, #a0))")
     public ResponseEntity<EmployeeResponseDTO> getEmployeeById(
             @Parameter(description = "Unique ID of the employee", required = true, example = "1")
             @PathVariable Long id) {
@@ -116,7 +116,7 @@ public class EmployeeController {
             @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content)
     })
     @GetMapping("/{id}/salary")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_HR')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_HR') or (hasAuthority('ROLE_EMPLOYEE') and @securityService.isSelf(authentication, #a0))")
     public ResponseEntity<SalaryResponseDTO> getEmployeeSalary(
             @Parameter(description = "Unique ID of the employee", required = true, example = "1")
             @PathVariable Long id) {
@@ -203,7 +203,14 @@ public class EmployeeController {
 
     // ─── EXPORT TO CSV ──────────────────────────────────────────────────────
 
-    @Operation(summary = "Export to CSV", description = "Exports all employees to a CSV file.")
+    @Operation(summary = "Export all employees to CSV", description = "Exports list of active employees including basic info, role, and current salary in CSV format. Accessible to ADMIN and HR roles.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "CSV file generated successfully",
+                    content = @Content(mediaType = "text/csv", schema = @Schema(type = "string", format = "binary"))),
+            @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content),
+            @ApiResponse(responseCode = "403", description = "Forbidden — Insufficient permissions", content = @Content),
+            @ApiResponse(responseCode = "500", description = "Error generating CSV", content = @Content)
+    })
     @GetMapping(value = "/export", produces = "text/csv")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_HR')")
     public ResponseEntity<String> exportToCsv() {

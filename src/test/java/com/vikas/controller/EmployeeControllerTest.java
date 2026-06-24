@@ -46,6 +46,9 @@ class EmployeeControllerTest {
     @MockBean
     private com.vikas.security.JwtUtil jwtUtil;
 
+    @MockBean(name = "securityService")
+    private com.vikas.security.SecurityService securityService;
+
     @Autowired
     private ObjectMapper objectMapper;
 
@@ -157,5 +160,60 @@ class EmployeeControllerTest {
 
         mockMvc.perform(delete("/api/employees/999"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @WithMockUser(authorities = {"ROLE_HR"})
+    void getEmployeeById_AsHR_Returns200() throws Exception {
+        when(service.getEmployeeById(1L))
+                .thenReturn(new EmployeeResponseDTO(1L, "Vikas", "Engineer", "FullTimeEmployee", 85000, null, false, false, false, null));
+        mockMvc.perform(get("/api/employees/1"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(username = "employee", authorities = {"ROLE_EMPLOYEE"})
+    void getEmployeeById_AsSelf_Returns200() throws Exception {
+        when(securityService.isSelf(any(), eq(1L))).thenReturn(true);
+        when(service.getEmployeeById(1L))
+                .thenReturn(new EmployeeResponseDTO(1L, "Vikas", "Engineer", "FullTimeEmployee", 85000, null, false, false, false, null));
+        mockMvc.perform(get("/api/employees/1"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(username = "employee", authorities = {"ROLE_EMPLOYEE"})
+    void getEmployeeById_AsOther_Returns403() throws Exception {
+        when(securityService.isSelf(any(), eq(2L))).thenReturn(false);
+        mockMvc.perform(get("/api/employees/2"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(authorities = {"ROLE_HR"})
+    void onboardEmployee_AsHR_Returns403() throws Exception {
+        EmployeeRequestDTO dto = new EmployeeRequestDTO();
+        dto.setName("Vikas");
+        dto.setDesignation("Engineer");
+        dto.setType(EmployeeType.FULLTIME);
+
+        mockMvc.perform(post("/api/employees/onboard")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(authorities = {"ROLE_EMPLOYEE"})
+    void onboardEmployee_AsEmployee_Returns403() throws Exception {
+        EmployeeRequestDTO dto = new EmployeeRequestDTO();
+        dto.setName("Vikas");
+        dto.setDesignation("Engineer");
+        dto.setType(EmployeeType.FULLTIME);
+
+        mockMvc.perform(post("/api/employees/onboard")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isForbidden());
     }
 }

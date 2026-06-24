@@ -30,4 +30,7 @@ public class User {
 
     @Column(nullable = false)
     private String role;       // e.g. ROLE_ADMIN, ROLE_HR, ROLE_EMPLOYEE
+
+    @Column(name = "employee_id", unique = true)
+    private Long employeeId;
 }

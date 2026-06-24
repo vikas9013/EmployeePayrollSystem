@@ -61,9 +61,9 @@ public class SecurityConfig {
                         ).permitAll()
                         .requestMatchers("/actuator/health").permitAll()
 
-                        // Read operations
+                        // Read operations — allow ADMIN, HR, and EMPLOYEE (method-level @PreAuthorize will restrict further)
                         .requestMatchers(HttpMethod.GET, "/api/employees/**")
-                        .hasAnyAuthority("ROLE_ADMIN", "ROLE_HR")
+                        .hasAnyAuthority("ROLE_ADMIN", "ROLE_HR", "ROLE_EMPLOYEE")
 
                         // Write operations
                         .requestMatchers(HttpMethod.POST, "/api/employees/**")
