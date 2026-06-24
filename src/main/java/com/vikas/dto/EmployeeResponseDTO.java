@@ -18,4 +18,10 @@ public class EmployeeResponseDTO implements Serializable {
     private String designation;
     private String type;
     private double salary;
+
+    private String workEmail;
+    private boolean slackInviteSent;
+    private boolean trainingAssigned;
+    private boolean payrollConfigured;
+    private String aiOnboardingMessage;
 }

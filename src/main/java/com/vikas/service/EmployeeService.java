@@ -16,8 +16,13 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import com.opencsv.CSVWriter;
+import java.io.StringWriter;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -25,7 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class EmployeeService {
 
     private final EmployeeRepository repository;
-    private final OnboardingService  onboardingService;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     // ─── GET ALL (paginated) ────────────────────────────────────────────────
 
@@ -81,9 +86,17 @@ public class EmployeeService {
         Employee employee = buildEmployee(dto);
         repository.save(employee);
         log.info("Employee saved with id: {}", employee.getId());
-        OnboardingResponseDTO result = onboardingService.onboard(employee);
-        log.info("Onboarding complete for employee id: {}", employee.getId());
-        return result;
+        
+        // Publish event for async processing
+        applicationEventPublisher.publishEvent(new com.vikas.event.OnboardingEvent(this, employee));
+        
+        log.info("Onboarding event published for employee id: {}", employee.getId());
+        
+        return OnboardingResponseDTO.builder()
+                .employeeId(employee.getId())
+                .employeeName(employee.getName())
+                .message("Onboarding process started asynchronously in the background.")
+                .build();
     }
 
     // ─── UPDATE ─────────────────────────────────────────────────────────────
@@ -131,7 +144,44 @@ public class EmployeeService {
         log.info("Employee id: {} soft-deleted", id);
     }
 
+    // ─── SAVE ONBOARDING PROGRESS ───────────────────────────────────────────
+
+    @Transactional
+    @CacheEvict(value = "employees", key = "#employee.id")
+    public void saveOnboardingProgress(Employee employee) {
+        log.info("Saving onboarding progress for employee id: {}", employee.getId());
+        repository.save(employee);
+    }
+
     // ─── PRIVATE HELPERS ────────────────────────────────────────────────────
+
+    // ─── EXPORT TO CSV ──────────────────────────────────────────────────────
+
+    public String exportToCsv() {
+        log.info("Exporting all employees to CSV");
+        List<Employee> employees = repository.findAll();
+        
+        try (StringWriter sw = new StringWriter();
+             CSVWriter csvWriter = new CSVWriter(sw)) {
+             
+            String[] header = {"ID", "Name", "Designation", "Salary"};
+            csvWriter.writeNext(header);
+            
+            for (Employee employee : employees) {
+                String[] row = {
+                        employee.getId().toString(),
+                        employee.getName(),
+                        employee.getDesignation(),
+                        String.valueOf(employee.calculateSalary())
+                };
+                csvWriter.writeNext(row);
+            }
+            return sw.toString();
+        } catch (Exception e) {
+            log.error("Error generating CSV", e);
+            throw new RuntimeException("Error generating CSV");
+        }
+    }
 
     private Employee findByIdOrThrow(Long id) {
         return repository.findById(id)
@@ -156,7 +206,12 @@ public class EmployeeService {
                 employee.getName(),
                 employee.getDesignation(),
                 employee.getClass().getSimpleName(),
-                employee.calculateSalary()
+                employee.calculateSalary(),
+                employee.getWorkEmail(),
+                employee.getSlackInviteSent() != null && employee.getSlackInviteSent(),
+                employee.getTrainingAssigned() != null && employee.getTrainingAssigned(),
+                employee.getPayrollConfigured() != null && employee.getPayrollConfigured(),
+                employee.getAiOnboardingMessage()
         );
     }
 }

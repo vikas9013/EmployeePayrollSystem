@@ -32,4 +32,13 @@ public class AuthController {
     public ResponseEntity<LoginResponseDTO> login(@Valid @RequestBody LoginRequestDTO request) {
         return ResponseEntity.ok(authService.login(request));
     }
+
+    @Operation(
+            summary     = "Refresh Token",
+            description = "Provide a valid refresh token to get a new JWT access token."
+    )
+    @PostMapping("/refresh")
+    public ResponseEntity<LoginResponseDTO> refresh(@Valid @RequestBody com.vikas.dto.RefreshTokenRequestDTO request) {
+        return ResponseEntity.ok(authService.refresh(request));
+    }
 }

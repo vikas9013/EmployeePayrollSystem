@@ -8,6 +8,10 @@ import lombok.Setter;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.LastModifiedBy;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+
 import java.time.LocalDateTime;
 
 // CHANGED:
@@ -15,12 +19,14 @@ import java.time.LocalDateTime;
 //  2. Added @SQLDelete + @SQLRestriction for soft deletes — removeEmployee() now sets deleted_at
 //     instead of permanently wiping the row
 //  3. Added createdAt / updatedAt audit timestamps with @PrePersist / @PreUpdate
+//  4. Added @CreatedBy and @LastModifiedBy with AuditingEntityListener
 
 @Entity
 @Inheritance(strategy = InheritanceType.JOINED)
 @Table(name = "employees")
 @SQLDelete(sql = "UPDATE employees SET deleted_at = NOW() WHERE id = ?")
 @SQLRestriction("deleted_at IS NULL")
+@EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -45,6 +51,29 @@ public abstract class Employee {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @CreatedBy
+    @Column(name = "created_by", updatable = false)
+    private String createdBy;
+
+    @LastModifiedBy
+    @Column(name = "updated_by")
+    private String updatedBy;
+
+    @Column(name = "work_email")
+    private String workEmail;
+
+    @Column(name = "slack_invite_sent")
+    private Boolean slackInviteSent = false;
+
+    @Column(name = "training_assigned")
+    private Boolean trainingAssigned = false;
+
+    @Column(name = "payroll_configured")
+    private Boolean payrollConfigured = false;
+
+    @Column(name = "ai_onboarding_message", columnDefinition = "TEXT")
+    private String aiOnboardingMessage;
+
     public Employee(String name, String designation) {
         this.name        = name;
         this.designation = designation;
@@ -52,8 +81,8 @@ public abstract class Employee {
 
     @PrePersist
     protected void onCreate() {
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
+        if (this.createdAt == null) this.createdAt = LocalDateTime.now();
+        if (this.updatedAt == null) this.updatedAt = LocalDateTime.now();
     }
 
     @PreUpdate

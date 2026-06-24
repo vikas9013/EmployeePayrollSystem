@@ -26,7 +26,15 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+import org.springframework.security.test.context.support.WithMockUser;
+
+import org.springframework.context.annotation.Import;
+import com.vikas.config.SecurityConfig;
+import com.vikas.security.JwtAuthFilter;
+
 @WebMvcTest(EmployeeController.class)
+@Import({SecurityConfig.class, JwtAuthFilter.class})
+@WithMockUser(authorities = {"ROLE_ADMIN"})
 class EmployeeControllerTest {
 
     @Autowired
@@ -34,6 +42,9 @@ class EmployeeControllerTest {
 
     @MockBean
     private EmployeeService service;
+
+    @MockBean
+    private com.vikas.security.JwtUtil jwtUtil;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -43,7 +54,7 @@ class EmployeeControllerTest {
         // CHANGED: getAllEmployees now takes Pageable and returns Page<>
         when(service.getAllEmployees(any(Pageable.class))).thenReturn(
                 new PageImpl<>(List.of(
-                        new EmployeeResponseDTO(1L, "Vikas", "Engineer", "FullTimeEmployee", 85000)
+                        new EmployeeResponseDTO(1L, "Vikas", "Engineer", "FullTimeEmployee", 85000, null, false, false, false, null)
                 ))
         );
 
@@ -56,7 +67,7 @@ class EmployeeControllerTest {
     @Test
     void getEmployeeById_Returns200() throws Exception {
         when(service.getEmployeeById(1L))
-                .thenReturn(new EmployeeResponseDTO(1L, "Vikas", "Engineer", "FullTimeEmployee", 85000));
+                .thenReturn(new EmployeeResponseDTO(1L, "Vikas", "Engineer", "FullTimeEmployee", 85000, null, false, false, false, null));
         mockMvc.perform(get("/api/employees/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Vikas"));

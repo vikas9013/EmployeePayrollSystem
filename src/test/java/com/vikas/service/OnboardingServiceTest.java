@@ -1,9 +1,8 @@
 package com.vikas.service;
 
-import com.vikas.dto.OnboardingResponseDTO;
+import com.vikas.event.OnboardingEvent;
 import com.vikas.entity.FullTimeEmployee;
 import com.vikas.entity.PartTimeEmployee;
-import com.vikas.exception.OnboardingException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -11,7 +10,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
@@ -34,6 +32,9 @@ class OnboardingServiceTest {
     @Mock
     private AIOnboardingService aiOnboardingService;
 
+    @Mock
+    private EmployeeService employeeService;
+
     @InjectMocks
     private OnboardingService onboardingService;
 
@@ -49,110 +50,51 @@ class OnboardingServiceTest {
         partTimeEmployee.setId(2L);
     }
 
-    // --- Happy path tests ---
-
     @Test
-    void onboard_FullTimeEmployee_AllStepsExecuted() {
+    void handleOnboardingEvent_FullTimeEmployee_AllStepsExecuted() {
         when(emailService.createWorkEmail(fullTimeEmployee)).thenReturn("vikas@company.com");
         when(aiOnboardingService.generateMessage(anyString(), anyString(), any()))
                 .thenReturn("Welcome Vikas!");
 
-        OnboardingResponseDTO result = onboardingService.onboard(fullTimeEmployee);
+        OnboardingEvent event = new OnboardingEvent(this, fullTimeEmployee);
+        onboardingService.handleOnboardingEvent(event);
 
-        assertNotNull(result);
-        assertEquals(1L, result.getEmployeeId());
-        assertEquals("Vikas", result.getEmployeeName());
-        assertEquals("vikas@company.com", result.getWorkEmail());
-        assertTrue(result.isSlackInviteSent());
-        assertTrue(result.isTrainingAssigned());
-        assertTrue(result.isPayrollConfigured());
-        assertEquals("Welcome Vikas!", result.getAiOnboardingMessage());
+        verify(emailService).createWorkEmail(fullTimeEmployee);
+        verify(slackService).sendWorkspaceInvite("vikas@company.com", "Vikas");
+        verify(trainingService).assignTrainingModules(fullTimeEmployee);
+        verify(payrollSetupService).setupPayroll(fullTimeEmployee);
+        verify(aiOnboardingService).generateMessage("Vikas", "Engineer", null);
+        verify(employeeService).saveOnboardingProgress(fullTimeEmployee);
     }
 
     @Test
-    void onboard_PartTimeEmployee_AllStepsExecuted() {
+    void handleOnboardingEvent_PartTimeEmployee_AllStepsExecuted() {
         when(emailService.createWorkEmail(partTimeEmployee)).thenReturn("rahul@company.com");
         when(aiOnboardingService.generateMessage(anyString(), anyString(), any()))
                 .thenReturn("Welcome Rahul!");
 
-        OnboardingResponseDTO result = onboardingService.onboard(partTimeEmployee);
+        OnboardingEvent event = new OnboardingEvent(this, partTimeEmployee);
+        onboardingService.handleOnboardingEvent(event);
 
-        assertNotNull(result);
-        assertEquals("Rahul", result.getEmployeeName());
-        assertEquals("rahul@company.com", result.getWorkEmail());
+        verify(emailService).createWorkEmail(partTimeEmployee);
+        verify(slackService).sendWorkspaceInvite("rahul@company.com", "Rahul");
+        verify(trainingService).assignTrainingModules(partTimeEmployee);
+        verify(payrollSetupService).setupPayroll(partTimeEmployee);
+        verify(aiOnboardingService).generateMessage("Rahul", "Intern", null);
+        verify(employeeService).saveOnboardingProgress(partTimeEmployee);
     }
 
     @Test
-    void onboard_MessageContainsEmployeeName() {
-        when(emailService.createWorkEmail(fullTimeEmployee)).thenReturn("vikas@company.com");
-        when(aiOnboardingService.generateMessage(anyString(), anyString(), any()))
-                .thenReturn("Welcome!");
+    void handleOnboardingEvent_ExceptionHandledGracefully() {
+        when(emailService.createWorkEmail(fullTimeEmployee)).thenThrow(new RuntimeException("Email failed"));
 
-        OnboardingResponseDTO result = onboardingService.onboard(fullTimeEmployee);
+        OnboardingEvent event = new OnboardingEvent(this, fullTimeEmployee);
+        onboardingService.handleOnboardingEvent(event);
 
-        assertTrue(result.getMessage().contains("Vikas"));
-    }
-
-    @Test
-    void onboard_AllServicesCalled() {
-        when(emailService.createWorkEmail(fullTimeEmployee)).thenReturn("vikas@company.com");
-        when(aiOnboardingService.generateMessage(anyString(), anyString(), any()))
-                .thenReturn("Welcome!");
-
-        onboardingService.onboard(fullTimeEmployee);
-
-        // Verify all 5 steps were called exactly once
-        verify(emailService, times(1)).createWorkEmail(fullTimeEmployee);
-        verify(slackService, times(1)).sendWorkspaceInvite("vikas@company.com", "Vikas");
-        verify(trainingService, times(1)).assignTrainingModules(fullTimeEmployee);
-        verify(payrollSetupService, times(1)).setupPayroll(fullTimeEmployee);
-        verify(aiOnboardingService, times(1)).generateMessage("Vikas", "Engineer", null);
-    }
-
-    // --- Failure path tests ---
-
-    @Test
-    void onboard_EmailFails_ThrowsOnboardingException() {
-        // CHANGED: import updated to com.vikas.exception.OnboardingException
-        when(emailService.createWorkEmail(fullTimeEmployee))
-                .thenThrow(new OnboardingException("EMAIL_CREATION", "Email failed", new RuntimeException()));
-
-        assertThrows(OnboardingException.class, () -> onboardingService.onboard(fullTimeEmployee));
-
-        // Slack should NOT be called if email fails
-        verify(slackService, never()).sendWorkspaceInvite(anyString(), anyString());
-    }
-
-    @Test
-    void onboard_SlackFails_ThrowsOnboardingException() {
-        when(emailService.createWorkEmail(fullTimeEmployee)).thenReturn("vikas@company.com");
-        doThrow(new OnboardingException("SLACK_INVITE", "Slack failed", new RuntimeException()))
-                .when(slackService).sendWorkspaceInvite(anyString(), anyString());
-
-        assertThrows(OnboardingException.class, () -> onboardingService.onboard(fullTimeEmployee));
-
-        // Training should NOT be called if Slack fails
-        verify(trainingService, never()).assignTrainingModules(any());
-    }
-
-    @Test
-    void onboard_TrainingFails_ThrowsOnboardingException() {
-        when(emailService.createWorkEmail(fullTimeEmployee)).thenReturn("vikas@company.com");
-        doThrow(new OnboardingException("TRAINING_ASSIGNMENT", "Training failed", new RuntimeException()))
-                .when(trainingService).assignTrainingModules(any());
-
-        assertThrows(OnboardingException.class, () -> onboardingService.onboard(fullTimeEmployee));
-
-        // Payroll should NOT be called if training fails
-        verify(payrollSetupService, never()).setupPayroll(any());
-    }
-
-    @Test
-    void onboard_PayrollFails_ThrowsOnboardingException() {
-        when(emailService.createWorkEmail(fullTimeEmployee)).thenReturn("vikas@company.com");
-        doThrow(new OnboardingException("PAYROLL_SETUP", "Payroll failed", new RuntimeException()))
-                .when(payrollSetupService).setupPayroll(any());
-
-        assertThrows(OnboardingException.class, () -> onboardingService.onboard(fullTimeEmployee));
+        verify(emailService).createWorkEmail(fullTimeEmployee);
+        verifyNoInteractions(slackService);
+        verifyNoInteractions(trainingService);
+        verifyNoInteractions(payrollSetupService);
+        verifyNoInteractions(aiOnboardingService);
     }
 }

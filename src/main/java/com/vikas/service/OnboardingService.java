@@ -1,21 +1,14 @@
 package com.vikas.service;
 
-import com.vikas.dto.OnboardingResponseDTO;
+import com.vikas.event.OnboardingEvent;
 import com.vikas.entity.Employee;
 import com.vikas.exception.OnboardingException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-
-// CHANGED:
-//  1. Added @Slf4j — proper structured logging instead of System.out.println
-//  2. Added @RequiredArgsConstructor — removes manual constructor
-//  3. Logging at each onboarding step so failures are traceable in production logs
-//
-// NOTE on OnboardingException package:
-//  Rename your existing package from "ExceptionHandler" → "exception" (lowercase)
-//  and update the import below accordingly.
+import org.springframework.transaction.event.TransactionalEventListener;
 
 @Slf4j
 @Service
@@ -27,56 +20,54 @@ public class OnboardingService {
     private final TrainingService     trainingService;
     private final PayrollSetupService payrollSetupService;
     private final AIOnboardingService aiOnboardingService;
+    private final EmployeeService     employeeService;
 
-    /**
-     * Runs all onboarding steps in sequence.
-     * If any step throws an OnboardingException, execution stops immediately
-     * and the exception propagates to GlobalExceptionHandler for a structured error response.
-     * The @Transactional on EmployeeService.addEmployeeWithOnboarding()
-     * will roll back the saved employee if any step here fails.
-     */
-    public OnboardingResponseDTO onboard(Employee employee) {
-        log.info("Starting onboarding pipeline for employee: {} (id: {})",
+    @Async
+    @TransactionalEventListener(phase = org.springframework.transaction.event.TransactionPhase.AFTER_COMMIT)
+    public void handleOnboardingEvent(OnboardingEvent event) {
+        Employee employee = event.getEmployee();
+        log.info("Starting async onboarding pipeline for employee: {} (id: {})",
                 employee.getName(), employee.getId());
 
-        // Step 1 — Email
-        log.info("[Step 1/5] Creating work email for: {}", employee.getName());
-        String workEmail = emailService.createWorkEmail(employee);
-        log.info("[Step 1/5] Work email created: {}", workEmail);
+        try {
+            // Step 1 — Email
+            log.info("[Step 1/5] Creating work email for: {}", employee.getName());
+            String workEmail = emailService.createWorkEmail(employee);
+            employee.setWorkEmail(workEmail);
+            log.info("[Step 1/5] Work email created: {}", workEmail);
 
-        // Step 2 — Slack
-        log.info("[Step 2/5] Sending Slack invite to: {}", workEmail);
-        slackService.sendWorkspaceInvite(workEmail, employee.getName());
-        log.info("[Step 2/5] Slack invite sent");
+            // Step 2 — Slack
+            log.info("[Step 2/5] Sending Slack invite to: {}", workEmail);
+            slackService.sendWorkspaceInvite(workEmail, employee.getName());
+            employee.setSlackInviteSent(true);
+            log.info("[Step 2/5] Slack invite sent");
 
-        // Step 3 — Training
-        log.info("[Step 3/5] Assigning training modules to: {}", employee.getName());
-        trainingService.assignTrainingModules(employee);
-        log.info("[Step 3/5] Training modules assigned");
+            // Step 3 — Training
+            log.info("[Step 3/5] Assigning training modules to: {}", employee.getName());
+            trainingService.assignTrainingModules(employee);
+            employee.setTrainingAssigned(true);
+            log.info("[Step 3/5] Training modules assigned");
 
-        // Step 4 — Payroll
-        log.info("[Step 4/5] Setting up payroll for: {}", employee.getName());
-        payrollSetupService.setupPayroll(employee);
-        log.info("[Step 4/5] Payroll configured");
+            // Step 4 — Payroll
+            log.info("[Step 4/5] Setting up payroll for: {}", employee.getName());
+            payrollSetupService.setupPayroll(employee);
+            employee.setPayrollConfigured(true);
+            log.info("[Step 4/5] Payroll configured");
 
-        // Step 5 — AI welcome message
-        log.info("[Step 5/5] Generating AI welcome message for: {}", employee.getName());
-        String aiMessage = aiOnboardingService.generateMessage(
-                employee.getName(), employee.getDesignation(), null);
-        log.info("[Step 5/5] AI welcome message generated");
+            // Step 5 — AI welcome message
+            log.info("[Step 5/5] Generating AI welcome message for: {}", employee.getName());
+            String aiMessage = aiOnboardingService.generateMessage(
+                    employee.getName(), employee.getDesignation(), null);
+            employee.setAiOnboardingMessage(aiMessage);
+            log.info("[Step 5/5] AI welcome message generated: {}", aiMessage);
 
-        log.info("Onboarding pipeline completed successfully for employee id: {}",
-                employee.getId());
+            // Persist changes and invalidate cache
+            employeeService.saveOnboardingProgress(employee);
 
-        return OnboardingResponseDTO.builder()
-                .employeeId(employee.getId())
-                .employeeName(employee.getName())
-                .workEmail(workEmail)
-                .slackInviteSent(true)
-                .trainingAssigned(true)
-                .payrollConfigured(true)
-                .message("Onboarding completed successfully for " + employee.getName())
-                .aiOnboardingMessage(aiMessage)
-                .build();
+            log.info("Async onboarding pipeline completed successfully for employee id: {}",
+                    employee.getId());
+        } catch (Exception e) {
+            log.error("Async onboarding failed for employee id: {}", employee.getId(), e);
+        }
     }
 }

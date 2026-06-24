@@ -200,4 +200,17 @@ public class EmployeeController {
         service.removeEmployee(id);
         return ResponseEntity.ok("Employee ID " + id + " removed successfully.");
     }
+
+    // ─── EXPORT TO CSV ──────────────────────────────────────────────────────
+
+    @Operation(summary = "Export to CSV", description = "Exports all employees to a CSV file.")
+    @GetMapping(value = "/export", produces = "text/csv")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_HR')")
+    public ResponseEntity<String> exportToCsv() {
+        log.info("GET /api/employees/export");
+        String csvData = service.exportToCsv();
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=\"employees.csv\"")
+                .body(csvData);
+    }
 }
