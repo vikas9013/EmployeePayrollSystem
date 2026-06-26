@@ -4,8 +4,17 @@ interface CustomAxiosRequestConfig extends InternalAxiosRequestConfig {
   _retry?: boolean;
 }
 
+const getBaseUrl = () => {
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  if (envUrl) {
+    // Suffix with /api if not already present
+    return envUrl.endsWith('/api') ? envUrl : `${envUrl}/api`;
+  }
+  return 'http://localhost:8080/api';
+};
+
 const api = axios.create({
-  baseURL: 'http://localhost:8080/api',
+  baseURL: getBaseUrl(),
   headers: {
     'Content-Type': 'application/json',
   },
@@ -34,7 +43,8 @@ api.interceptors.response.use(
       if (refreshToken) {
         try {
           // Attempt to refresh the token
-          const { data } = await axios.post<{ token: string }>('http://localhost:8080/api/auth/refresh', {
+          const refreshUrl = `${getBaseUrl()}/auth/refresh`;
+          const { data } = await axios.post<{ token: string }>(refreshUrl, {
             refreshToken,
           });
           
