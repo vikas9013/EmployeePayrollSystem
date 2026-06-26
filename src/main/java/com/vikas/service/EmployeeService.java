@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.context.ApplicationEventPublisher;
@@ -68,6 +69,7 @@ public class EmployeeService {
     //           to test getById, getSalary, update, delete — not onboarding.
 
     @Transactional
+    @CacheEvict(value = "employees", allEntries = true)
     public EmployeeResponseDTO addEmployee(EmployeeRequestDTO dto) {
         log.info("Saving employee without onboarding: {}", dto.getName());
         Employee employee = buildEmployee(dto);
@@ -81,6 +83,7 @@ public class EmployeeService {
     //           This is what the actual POST /api/employees/onboard calls.
 
     @Transactional
+    @CacheEvict(value = "employees", allEntries = true)
     public OnboardingResponseDTO addEmployeeWithOnboarding(EmployeeRequestDTO dto) {
         log.info("Starting onboarding for new employee: {}", dto.getName());
         Employee employee = buildEmployee(dto);
@@ -102,7 +105,7 @@ public class EmployeeService {
     // ─── UPDATE ─────────────────────────────────────────────────────────────
 
     @Transactional
-    @CacheEvict(value = "employees", key = "#id")
+    @CacheEvict(value = "employees", allEntries = true)
     public EmployeeResponseDTO updateEmployee(Long id, EmployeeRequestDTO dto) {
         log.info("Updating employee id: {}", id);
         Employee existing = findByIdOrThrow(id);
@@ -133,7 +136,7 @@ public class EmployeeService {
     // ─── DELETE (soft) ──────────────────────────────────────────────────────
 
     @Transactional
-    @CacheEvict(value = "employees", key = "#id")
+    @CacheEvict(value = "employees", allEntries = true)
     public void removeEmployee(Long id) {
         log.info("Soft-deleting employee id: {}", id);
         if (!repository.existsById(id)) {

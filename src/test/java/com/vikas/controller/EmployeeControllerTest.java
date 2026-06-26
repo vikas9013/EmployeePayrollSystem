@@ -49,6 +49,9 @@ class EmployeeControllerTest {
     @MockBean(name = "securityService")
     private com.vikas.security.SecurityService securityService;
 
+    @MockBean
+    private org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate;
+
     @Autowired
     private ObjectMapper objectMapper;
 
@@ -104,6 +107,10 @@ class EmployeeControllerTest {
         dto.setType(EmployeeType.FULLTIME);
         dto.setMonthlySalary(85000);
 
+        org.springframework.data.redis.core.ValueOperations<String, String> valueOps = org.mockito.Mockito.mock(org.springframework.data.redis.core.ValueOperations.class);
+        when(stringRedisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.increment(any())).thenReturn(1L);
+
         when(service.addEmployeeWithOnboarding(any())).thenReturn(
                 new OnboardingResponseDTO(1L, "Vikas", "vikas@company.com",
                         true, true, true,
@@ -117,9 +124,32 @@ class EmployeeControllerTest {
     }
 
     @Test
+    void addEmployee_RateLimitExceeded_Returns429() throws Exception {
+        EmployeeRequestDTO dto = new EmployeeRequestDTO();
+        dto.setName("Vikas");
+        dto.setDesignation("Engineer");
+        dto.setType(EmployeeType.FULLTIME);
+        dto.setMonthlySalary(85000);
+
+        org.springframework.data.redis.core.ValueOperations<String, String> valueOps = org.mockito.Mockito.mock(org.springframework.data.redis.core.ValueOperations.class);
+        when(stringRedisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.increment(any())).thenReturn(11L); // Over 10
+
+        mockMvc.perform(post("/api/employees/onboard")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Too many onboarding requests")));
+    }
+
+    @Test
     void addEmployee_MissingName_Returns400() throws Exception {
         EmployeeRequestDTO dto = new EmployeeRequestDTO();
         dto.setType(EmployeeType.FULLTIME); // name is missing
+
+        org.springframework.data.redis.core.ValueOperations<String, String> valueOps = org.mockito.Mockito.mock(org.springframework.data.redis.core.ValueOperations.class);
+        when(stringRedisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.increment(any())).thenReturn(1L);
 
         mockMvc.perform(post("/api/employees/onboard")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -191,16 +221,28 @@ class EmployeeControllerTest {
 
     @Test
     @WithMockUser(authorities = {"ROLE_HR"})
-    void onboardEmployee_AsHR_Returns403() throws Exception {
+    void onboardEmployee_AsHR_Returns201() throws Exception {
         EmployeeRequestDTO dto = new EmployeeRequestDTO();
         dto.setName("Vikas");
         dto.setDesignation("Engineer");
         dto.setType(EmployeeType.FULLTIME);
+        dto.setMonthlySalary(85000);
+
+        org.springframework.data.redis.core.ValueOperations<String, String> valueOps =
+                org.mockito.Mockito.mock(org.springframework.data.redis.core.ValueOperations.class);
+        when(stringRedisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.increment(any())).thenReturn(1L);
+
+        when(service.addEmployeeWithOnboarding(any())).thenReturn(
+                new OnboardingResponseDTO(2L, "Vikas", "vikas@company.com",
+                        true, true, true,
+                        "Onboarding completed", "Welcome Vikas!"));
 
         mockMvc.perform(post("/api/employees/onboard")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.employeeId").value(2));
     }
 
     @Test

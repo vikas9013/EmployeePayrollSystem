@@ -19,8 +19,11 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.web.header.writers.XXssProtectionHeaderWriter;
 
 import java.util.List;
+import java.util.Arrays;
 
 // NEW CLASS
 // Location: src/main/java/com/vikas/config/SecurityConfig.java
@@ -34,6 +37,9 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
+
+    @Value("${app.cors.allowed-origins:http://localhost:3000}")
+    private String allowedOrigins;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -49,7 +55,7 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(auth -> auth
                         // Public endpoints — no token needed
-                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/auth/login", "/api/auth/refresh").permitAll()
                         .requestMatchers(
                                 "/",
                                 "/swagger-ui/**",
@@ -67,16 +73,26 @@ public class SecurityConfig {
 
                         // Write operations
                         .requestMatchers(HttpMethod.POST, "/api/employees/**")
-                        .hasAuthority("ROLE_ADMIN")
+                        .hasAnyAuthority("ROLE_ADMIN", "ROLE_HR")
                         .requestMatchers(HttpMethod.PUT, "/api/employees/**")
-                        .hasAuthority("ROLE_ADMIN")
+                        .hasAnyAuthority("ROLE_ADMIN", "ROLE_HR")
                         .requestMatchers(HttpMethod.DELETE, "/api/employees/**")
                         .hasAuthority("ROLE_ADMIN")
+
+                        // Ratings endpoints
+                        .requestMatchers(HttpMethod.GET, "/api/ratings/**")
+                        .hasAnyAuthority("ROLE_ADMIN", "ROLE_MANAGER", "ROLE_HR", "ROLE_EMPLOYEE")
+                        .requestMatchers(HttpMethod.POST, "/api/ratings/**")
+                        .hasAnyAuthority("ROLE_ADMIN", "ROLE_MANAGER")
 
                         .anyRequest().authenticated()
                 )
 
-                .headers(headers -> headers.frameOptions(frame -> frame.disable()))
+                .headers(headers -> headers
+                        .frameOptions(frame -> frame.deny())
+                        .xssProtection(xss -> xss.headerValue(XXssProtectionHeaderWriter.HeaderValue.ENABLED_MODE_BLOCK))
+                        .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'"))
+                )
 
                 // Add our JWT filter before Spring's default username/password filter
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
@@ -98,9 +114,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        // IMPORTANT: Replace * with your actual frontend URL in production
-        // e.g. config.setAllowedOrigins(List.of("https://yourfrontend.com"));
-        config.setAllowedOrigins(List.of("*"));
+        config.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
 

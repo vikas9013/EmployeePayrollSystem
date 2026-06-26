@@ -32,6 +32,9 @@ A **production-ready Spring Boot backend** that manages employee payroll for ful
 
 ## ⚡ Quick Overview
 
+- 💻 Modern React Frontend built with Vite, TypeScript, and a premium dark-themed glassmorphism UI
+- 👤 "My Profile" space for employees to check details, onboarding pipeline milestones, and AI message
+- ⭐ Project Performance Ratings system for tracking employee project performance and averages
 - 🔐 JWT Authentication + Role-Based Access Control (RBAC)
 - 🤖 AI-powered onboarding via Groq LLaMA 3.3 70B
 - ⚡ Redis caching with smart eviction strategy
@@ -39,8 +42,9 @@ A **production-ready Spring Boot backend** that manages employee payroll for ful
 - 🛡️ Rate limiting with Bucket4j (prevents AI API abuse)
 - 📊 Prometheus metrics + Spring Actuator health checks
 - 🗑️ Soft-delete (no permanent data loss)
-- 🐳 Fully Dockerized (PostgreSQL + Redis + App)
+- 🐳 Fully Dockerized (PostgreSQL + Redis + App + Frontend)
 - 🧪 Unit + Integration testing with Testcontainers + JaCoCo
+- 🔄 Vite hot-reload enabled via Docker volumes & polling configuration
 
 ---
 
@@ -92,6 +96,7 @@ Client (Swagger UI / curl / Postman)
 
 | Category | Technology | Details |
 | --- | --- | --- |
+| Frontend | React 18, Vite, TypeScript | Single Page App (SPA) with Custom CSS & Lucide Icons |
 | Backend | Java 21, Spring Boot 3.3.4 | Core framework |
 | Security | Spring Security + JJWT 0.12.6 | JWT stateless auth |
 | Database | PostgreSQL + Spring Data JPA | Hibernate ORM |
@@ -159,13 +164,16 @@ src/
     ├── config/
     │   ├── SecurityConfig.java              # JWT auth, CORS, role-based route protection
     │   ├── SwaggerConfig.java               # Swagger UI + Bearer auth configuration
-    │   └── DataSeeder.java                  # Seeds default admin & HR users on startup
+    │   └── DataSeeder.java                  # Seeds default admin, HR, and employee users on startup
     ├── controller/
-    │   ├── AuthController.java              # POST /api/auth/login
-    │   └── EmployeeController.java          # Employee CRUD + onboarding (rate limited)
+    │   ├── AuthController.java              # POST /api/auth/login, GET /api/auth/me
+    │   ├── EmployeeController.java          # Employee CRUD + onboarding (rate limited)
+    │   ├── ProjectRatingController.java     # Submit and view project performance ratings
+    │   └── HomeController.java              # Home redirect to Swagger documentation
     ├── service/
-    │   ├── AuthService.java                 # Login — verifies credentials, issues JWT
+    │   ├── AuthService.java                 # Login, JWT issuing, user verification
     │   ├── EmployeeService.java             # Core CRUD + Redis caching + soft-delete
+    │   ├── ProjectRatingService.java        # Project performance rating operations
     │   ├── OnboardingService.java           # Orchestrates the 5-step onboarding pipeline
     │   ├── AIOnboardingService.java         # AI welcome message via Groq API
     │   ├── EmailService.java                # Generates work email address
@@ -174,22 +182,29 @@ src/
     │   └── PayrollSetupService.java         # Configures payroll (FULLTIME or PARTTIME)
     ├── entity/
     │   ├── Employee.java                    # Abstract base — soft-delete, audit timestamps
-    │   ├── FullTimeEmployee.java            # monthlySalary field
+    │   ├── FullTimeEmployee.java            # monthlySalary field (stores annual salary)
     │   ├── PartTimeEmployee.java            # hoursWorked + hourlyRate fields
-    │   └── User.java                        # Login credentials (BCrypt hashed)
+    │   ├── ProjectRating.java               # Rating scores and feedback for projects
+    │   ├── RefreshToken.java                # Auth session refresh token mapping
+    │   └── User.java                        # Login credentials & roles (BCrypt hashed)
     ├── security/
     │   ├── JwtUtil.java                     # Token generation & validation
     │   └── JwtAuthFilter.java               # Per-request JWT filter
     ├── repository/
     │   ├── EmployeeRepository.java
-    │   └── UserRepository.java
+    │   ├── UserRepository.java
+    │   ├── ProjectRatingRepository.java     # Database access for ratings
+    │   └── RefreshTokenRepository.java      # Database access for refresh tokens
     ├── dto/
     │   ├── EmployeeRequestDTO.java
     │   ├── EmployeeResponseDTO.java
     │   ├── SalaryResponseDTO.java
     │   ├── OnboardingResponseDTO.java
     │   ├── LoginRequestDTO.java
-    │   └── LoginResponseDTO.java
+    │   ├── LoginResponseDTO.java
+    │   ├── ProjectRatingRequestDTO.java     # Schema to submit a rating
+    │   ├── ProjectRatingResponseDTO.java    # Schema returning rating details
+    │   └── RefreshTokenRequestDTO.java
     ├── enums/
     │   └── EmployeeType.java                # FULLTIME | PARTTIME
     ├── exception/
@@ -197,6 +212,30 @@ src/
     │   └── OnboardingException.java
     └── ExceptionHandler/
         └── GlobalExceptionHandler.java      # Handles 400, 401, 403, 404, 429, 500
+
+frontend/
+├── src/
+│   ├── App.tsx                              # App component with react-router-dom configuration
+│   ├── main.tsx                             # React bootstrapper
+│   ├── index.css                            # Glassmorphism global theme, colors & layout CSS
+│   ├── pages/                               # Views
+│   │   ├── Dashboard.tsx                    # Multi-metric dashboard (Settled requests)
+│   │   ├── Employees.tsx & .css             # Directory table with inline View/Edit/Delete Modals
+│   │   ├── Login.tsx & .css                 # Beautiful glass-card sign-in
+│   │   ├── Onboarding.tsx & .css            # Onboard form with real-time feedback & status checks
+│   │   ├── Profile.tsx & .css               # Employee onboarding checklist, details, & ratings
+│   │   └── Ratings.tsx & .css               # Performance tracking, average charts, and submission
+│   ├── components/
+│   │   ├── Sidebar.tsx & .css               # Navigation control reflecting active credentials
+│   │   ├── MetricCard.tsx                   # Sleek animated summary cards for dashboard
+│   │   └── SkeletonLoader.tsx               # Content loaders for dashboard/tables during wait
+│   ├── context/
+│   │   ├── AuthContext.tsx                  # Global token/roles session hook
+│   │   └── ToastContext.tsx                 # System alert dispatcher
+│   └── services/
+│       └── api.ts                           # Axios client with automatic JWT header interceptors
+├── package.json                             # Dependencies configuration
+└── vite.config.js                           # Vite setup with hot-reload volume polling enabled
 ```
 
 ---
@@ -354,6 +393,7 @@ Interactive API documentation — test every endpoint directly in the browser.
 | Method | Endpoint | Auth | Description |
 | --- | --- | --- | --- |
 | `POST` | `/api/auth/login` | ❌ Public | Login and receive a JWT token |
+| `GET` | `/api/auth/me` | JWT Required | Get current authenticated user session |
 
 ### Employee Management
 
@@ -365,6 +405,14 @@ Interactive API documentation — test every endpoint directly in the browser.
 | `POST` | `/api/employees/onboard` | ADMIN only | Add employee + full onboarding pipeline |
 | `PUT` | `/api/employees/{id}` | ADMIN only | Update an employee |
 | `DELETE` | `/api/employees/{id}` | ADMIN only | Soft-delete an employee |
+
+### Project Ratings Management
+
+| Method | Endpoint | Role Required | Description |
+| --- | --- | --- | --- |
+| `GET` | `/api/ratings` | ADMIN, HR, MANAGER | Get list of all recorded project ratings |
+| `GET` | `/api/ratings/employee/{id}` | ADMIN, MANAGER or Self | Get project ratings for a specific employee |
+| `POST` | `/api/ratings` | ADMIN or MANAGER | Add a new project rating for an employee |
 
 ### Observability
 
@@ -594,10 +642,10 @@ Coverage report: `target/site/jacoco/index.html`
 
 - Convert into a fully distributed microservices architecture
 - Add Kafka / RabbitMQ for event-driven async onboarding
-- Integrate real email (SendGrid) and Slack APIs
-- Add a React frontend dashboard
+- Integrate real email (SendGrid) and Slack APIs instead of mocking/simulating them
 - Deploy on AWS with a CI/CD pipeline (GitHub Actions)
 - Add refresh token support for longer JWT sessions
+- Implement multi-tenant capability so different organizations can manage separate workforces
 
 > This project is actively evolving towards a full production-grade system.
 

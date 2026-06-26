@@ -2,12 +2,14 @@ package com.vikas.controller;
 
 import com.vikas.dto.LoginRequestDTO;
 import com.vikas.dto.LoginResponseDTO;
+import com.vikas.repository.UserRepository;
 import com.vikas.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 // NEW CLASS
@@ -27,6 +29,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 public class AuthController {
 
     private final AuthService authService;
+    private final UserRepository userRepository;
 
     @Operation(
             summary     = "Login and retrieve authentication tokens",
@@ -63,5 +66,20 @@ public class AuthController {
     @PostMapping("/refresh")
     public ResponseEntity<LoginResponseDTO> refresh(@Valid @RequestBody com.vikas.dto.RefreshTokenRequestDTO request) {
         return ResponseEntity.ok(authService.refresh(request));
+    }
+
+    @Operation(summary = "Get current user info", description = "Returns the authenticated user's username, role, and linked employeeId.")
+    @GetMapping("/me")
+    public ResponseEntity<?> me(Authentication auth) {
+        if (auth == null || !auth.isAuthenticated()) {
+            return ResponseEntity.status(401).body("Not authenticated");
+        }
+        return userRepository.findByUsername(auth.getName())
+                .map(u -> ResponseEntity.ok(java.util.Map.of(
+                        "username", u.getUsername(),
+                        "role", u.getRole(),
+                        "employeeId", u.getEmployeeId() != null ? u.getEmployeeId() : ""
+                )))
+                .orElse(ResponseEntity.notFound().build());
     }
 }

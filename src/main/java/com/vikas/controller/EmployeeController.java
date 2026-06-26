@@ -5,8 +5,6 @@ import com.vikas.dto.EmployeeResponseDTO;
 import com.vikas.dto.OnboardingResponseDTO;
 import com.vikas.dto.SalaryResponseDTO;
 import com.vikas.service.EmployeeService;
-import io.github.bucket4j.Bandwidth;
-import io.github.bucket4j.Bucket;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -15,9 +13,11 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -47,12 +47,7 @@ import java.time.Duration;
 public class EmployeeController {
 
     private final EmployeeService service;
-
-    // Rate limiter: max 10 onboard requests per minute per instance
-    // For distributed rate limiting, move this to Redis-backed Bucket4j
-    private final Bucket onboardBucket = Bucket.builder()
-            .addLimit(Bandwidth.simple(10, Duration.ofMinutes(1)))
-            .build();
+    private final StringRedisTemplate redisTemplate;
 
     // ─── GET ALL ────────────────────────────────────────────────────────────
 
@@ -142,17 +137,34 @@ public class EmployeeController {
             @ApiResponse(responseCode = "500", description = "Onboarding pipeline failed", content = @Content)
     })
     @PostMapping("/onboard")
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-    public ResponseEntity<?> onboardEmployee(@Valid @RequestBody EmployeeRequestDTO dto) {
-        // Rate limiting check
-        if (!onboardBucket.tryConsume(1)) {
-            log.warn("Rate limit exceeded on /onboard endpoint");
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_HR')")
+    public ResponseEntity<?> onboardEmployee(
+            @Valid @RequestBody EmployeeRequestDTO dto,
+            HttpServletRequest request) {
+        // Distributed rate limiting check using Redis
+        String clientIp = getClientIp(request);
+        String key = "rate_limit:onboard:" + clientIp;
+        Long requests = redisTemplate.opsForValue().increment(key);
+        if (requests != null && requests == 1) {
+            redisTemplate.expire(key, Duration.ofMinutes(1));
+        }
+
+        if (requests != null && requests > 10) {
+            log.warn("Rate limit exceeded on /onboard endpoint for IP: {}", clientIp);
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                     .body("Too many onboarding requests. Please wait a moment and try again.");
         }
         log.info("POST /api/employees/onboard — name: {}", dto.getName());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(service.addEmployeeWithOnboarding(dto));
+    }
+
+    private String getClientIp(HttpServletRequest request) {
+        String xfHeader = request.getHeader("X-Forwarded-For");
+        if (xfHeader == null || xfHeader.isEmpty()) {
+            return request.getRemoteAddr();
+        }
+        return xfHeader.split(",")[0].trim();
     }
 
     // ─── UPDATE ─────────────────────────────────────────────────────────────
@@ -169,7 +181,7 @@ public class EmployeeController {
             @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content)
     })
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_HR')")
     public ResponseEntity<EmployeeResponseDTO> updateEmployee(
             @Parameter(description = "Unique ID of the employee", required = true, example = "1")
             @PathVariable Long id,

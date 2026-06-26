@@ -23,6 +23,12 @@ nul
 *.log
 output.txt
 test.json
+logs.txt
+app_logs.txt
+app_logs2.txt
+test_api.py
+powershell.bat
+.vscode/
 
 # Maven wrapper
 .mvn/wrapper/maven-wrapper.jar
