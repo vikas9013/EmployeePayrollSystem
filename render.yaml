@@ -1,19 +1,10 @@
-services:
-  # PostgreSQL Database Service
-  - type: pserv
-    name: payroll-db
-    env: image
-    image: postgres:16
+databases:
+  - name: payroll-db
+    databaseName: payrolldb
+    user: payroll_user
     plan: free
-    ipAddress: private
-    envVars:
-      - key: POSTGRES_DB
-        value: payrolldb
-      - key: POSTGRES_USER
-        value: payroll_user
-      - key: POSTGRES_PASSWORD
-        generateValue: true
 
+services:
   # Redis Cache Service
   - type: pserv
     name: payroll-redis
@@ -31,14 +22,17 @@ services:
     dockerfilePath: ./Dockerfile
     envVars:
       - key: DB_URL
-        value: jdbc:postgresql://payroll-db:5432/payrolldb
-      - key: DB_USERNAME
-        value: payroll_user
-      - key: DB_PASSWORD
-        fromService:
-          type: pserv
+        fromDatabase:
           name: payroll-db
-          envKey: POSTGRES_PASSWORD
+          property: jdbcConnectionString
+      - key: DB_USERNAME
+        fromDatabase:
+          name: payroll-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: payroll-db
+          property: password
       - key: REDIS_HOST
         value: payroll-redis
       - key: REDIS_PORT
@@ -48,8 +42,6 @@ services:
       - key: JWT_SECRET
         sync: false
     depends_on:
-      - type: pserv
-        name: payroll-db
       - type: pserv
         name: payroll-redis
     healthCheckPath: /actuator/health
@@ -72,4 +64,3 @@ services:
       - type: rewrite
         source: /*
         destination: /index.html
-
